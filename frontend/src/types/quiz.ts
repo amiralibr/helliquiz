@@ -8,7 +8,8 @@ export interface Question {
   documentId?: string;
   title: string;
   options: QuestionOption[];
-  points: number;
+  points?: number;
+  score?: number;
   explanation?: string;
 }
 
@@ -16,6 +17,7 @@ export interface Quiz {
   id: number;
   documentId?: string;
   title: string;
+  slug?: string;
   description?: string;
   durationMinutes: number;
   questions?: Question[];
@@ -23,35 +25,29 @@ export interface Quiz {
   updatedAt?: string;
 }
 
-export interface QuestionResult {
-  questionId: number;
-  questionTitle: string;
-  selectedOption: string | null;
-  correctOption: string;
+export interface SubmissionPayload {
+  quizId: number | string;
+  studentName: string;
+  timeSpentSeconds?: number;
+  answers: Record<string | number, string>;
+}
+
+export interface QuestionEvaluation {
+  studentAnswer: string | null;
+  correctAnswer: string;
   isCorrect: boolean;
-  score: number;
-  points: number;
-  explanation?: string;
 }
 
 export interface SubmissionResponse {
-  submissionId: number;
-  studentName: string;
-  quizTitle: string;
-  totalQuestions: number;
-  correctAnswersCount: number;
-  earnedScore: number;
-  totalScore: number;
-  percentage: number;
-  results: QuestionResult[];
-}
-export interface SubmissionPayload {
-  quizId: number;
-  studentName: string;
-  answers: {
-    questionId: number;
-    selectedOption: number; 
-  }[];
+  message: string;
+  result: {
+    studentName: string;
+    totalScore: number;
+    earnedScore: number;
+    percentage: number;
+    timeSpentSeconds: number;
+    details: Record<string | number, QuestionEvaluation>;
+  };
 }
 
 export type SubmissionResult = SubmissionResponse;
