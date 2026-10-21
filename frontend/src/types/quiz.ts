@@ -25,17 +25,17 @@ export interface Quiz {
   updatedAt?: string;
 }
 
+export interface QuestionEvaluation {
+  studentAnswer: string | null;
+  correctAnswer: string;
+  isCorrect: boolean;
+}
+
 export interface SubmissionPayload {
   quizId: number | string;
   studentName: string;
   timeSpentSeconds?: number;
   answers: Record<string | number, string>;
-}
-
-export interface QuestionEvaluation {
-  studentAnswer: string | null;
-  correctAnswer: string;
-  isCorrect: boolean;
 }
 
 export interface SubmissionResponse {
