@@ -1,53 +1,35 @@
-export interface QuestionOption {
-  key: string;
-  text: string;
+export interface Quiz {
+  id: number;
+  documentId: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  slug?: string;
+  questions?: Question[];
 }
 
 export interface Question {
-  id: number;
+  id: number | string;
   documentId?: string;
-  title: string;
-  options: QuestionOption[];
-  points?: number;
+  questionText?: string;
+  prompt?: string;
+  options: string[] | Record<string, string>;
   score?: number;
-  explanation?: string;
-}
-
-export interface Quiz {
-  id: number;
-  documentId?: string;
-  title: string;
-  slug?: string;
-  description?: string;
-  durationMinutes: number;
-  questions?: Question[];
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface QuestionEvaluation {
-  studentAnswer: string | null;
-  correctAnswer: string;
+  questionId?: number | string;
+  studentAnswer?: any;
+  correctAnswer?: any;
   isCorrect: boolean;
-}
-
-export interface SubmissionPayload {
-  quizId: number | string;
-  studentName: string;
-  timeSpentSeconds?: number;
-  answers: Record<string | number, string>;
 }
 
 export interface SubmissionResponse {
   message: string;
   result: {
-    studentName: string;
-    totalScore: number;
-    earnedScore: number;
+    score: number;
+    totalQuestions: number;
     percentage: number;
-    timeSpentSeconds: number;
-    details: Record<string | number, QuestionEvaluation>;
+    details: Array<QuestionEvaluation> | Record<string | number, QuestionEvaluation>;
   };
 }
-
-export type SubmissionResult = SubmissionResponse;

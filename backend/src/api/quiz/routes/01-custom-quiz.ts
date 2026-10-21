@@ -2,10 +2,12 @@ export default {
   routes: [
     {
       method: 'POST',
-      path: '/quizzes/submit',
-      handler: 'api::quiz.quiz.submit',
+      path: '/quizzes/:id/submit',
+      handler: 'quiz.submit',
       config: {
         auth: false,
+        policies: [],
+        middlewares: [],
       },
     },
   ],
