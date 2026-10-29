@@ -4,7 +4,6 @@ import { getQuizzes } from "@/lib/api";
 import { Quiz } from "@/types/quiz";
 import { BookOpen, Clock, HelpCircle, ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 
-// کامپوننت لودینگ موقت حین واکشی اطلاعات از Strapi
 function QuizListSkeleton() {
   return (
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -25,7 +24,6 @@ function QuizListSkeleton() {
   );
 }
 
-// کامپوننت داخلی واکشی و رندر داده‌ها
 async function QuizList() {
   let quizzes: Quiz[] = [];
   let error: string | null = null;
@@ -102,7 +100,6 @@ async function QuizList() {
   );
 }
 
-// کامپوننت اصلی روت با پشتیبانی کامل از Suspense
 export default function HomePage() {
   return (
     <div className="space-y-8">

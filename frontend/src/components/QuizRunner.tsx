@@ -21,7 +21,6 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
 
   const questions = quiz.questions || [];
 
-  // تایمر معکوس
   useEffect(() => {
     if (result || timeLeft <= 0) return;
 
@@ -39,11 +38,11 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
     return () => clearInterval(timer);
   }, [timeLeft, result]);
 
-  const handleSelectOption = (questionId: string | number, optionKey: string) => {
+  const handleSelectOption = (questionKey: string | number, optionKey: string) => {
     if (result) return;
     setSelectedAnswers((prev) => ({
       ...prev,
-      [questionId]: optionKey,
+      [String(questionKey)]: optionKey,
     }));
   };
 
@@ -55,6 +54,8 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
     try {
       const quizIdentifier = quiz.documentId || quiz.id;
       const res = await submitQuizAnswers(quizIdentifier, selectedAnswers);
+      
+      console.log("📥 SUBMIT RESULT RESPONSE:", res);
       setResult(res.result);
 
       if (res.result.percentage >= 50) {
@@ -77,18 +78,32 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // کمکی برای استخراج جزئیات پاسخ هر سوال
-  const getQuestionDetail = (questionId: string | number) => {
+  const getQuestionDetail = (question: any, index: number) => {
     if (!result || !result.details) return null;
+    
+    const qId = String(question.id || "");
+    const qDocId = String(question.documentId || "");
+
     if (Array.isArray(result.details)) {
-      return result.details.find((d) => String(d.questionId) === String(questionId));
+      return result.details.find((d: any, idx: number) => {
+        const dId = String(d.questionId || d.id || d.question_id || "");
+        return (
+          (qDocId && dId === qDocId) ||
+          (qId && dId === qId) ||
+          idx === index
+        );
+      }) || result.details[index] || null;
     }
-    return result.details[questionId];
+    
+    return (
+      (qDocId && result.details[qDocId]) ||
+      (qId && result.details[qId]) ||
+      null
+    );
   };
 
   return (
     <div className="space-y-8 pb-16">
-      {/* نوار بالا */}
       <div className="sticky top-20 z-10 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/90">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{quiz.title}</h1>
@@ -111,7 +126,6 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
         )}
       </div>
 
-      {/* کارنامه */}
       {result && (
         <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 text-zinc-900 dark:border-blue-900/50 dark:from-zinc-900 dark:to-zinc-900/80 dark:text-zinc-100">
           <div className="flex flex-col items-center text-center sm:flex-row sm:justify-between sm:text-right">
@@ -122,8 +136,14 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
               </div>
               <h2 className="text-2xl font-black">درصد کسب‌شده: {result.percentage}٪</h2>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                پاسخ‌های صحیح: {result.score} از {result.totalQuestions}
+                نمره کسب‌شده: {(result as any).score} از {(result as any).totalScore || result.totalQuestions}
+                  {((result as any).correctCount !== undefined) && (
+                   <span className="mr-2 text-xs opacity-80">
+                      ({(result as any).correctCount} پاسخ درست از {result.totalQuestions} سؤال)
+                   </span>
+                  )}
               </p>
+
             </div>
             <Link
               href="/"
@@ -143,26 +163,31 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
         </div>
       )}
 
-      {/* سوالات */}
       <div className="space-y-6">
         {questions.map((question, index) => {
-          const detail = getQuestionDetail(question.id);
-          const selectedOption = selectedAnswers[question.id];
+          const qKey = (question.documentId || question.id) as string | number;
+          const detail = getQuestionDetail(question, index);
+          const selectedOption = selectedAnswers[String(qKey)];
           const questionText = question.questionText || question.prompt || "";
 
-          // تبدیل گزینه‌ها به لیست کلید-مقدار (چه آرایه باشد چه آبجکت)
+          const isQuestionCorrect = Boolean(
+            detail?.isCorrect === true ||
+            String(detail?.isCorrect) === "true" ||
+            (detail?.score !== undefined && Number(detail.score) > 0)
+          );
+
           const optionsList = Array.isArray(question.options)
             ? question.options.map((opt, i) => ({ key: String(i), label: opt }))
             : Object.entries(question.options || {}).map(([key, label]) => ({ key, label }));
 
           return (
             <div
-              key={question.id}
+              key={qKey || index}
               className={`rounded-xl border p-6 transition-all ${
                 result
-                  ? detail?.isCorrect
-                    ? "border-green-200 bg-green-50/20 dark:border-green-900/40 dark:bg-green-950/10"
-                    : "border-red-200 bg-red-50/20 dark:border-red-900/40 dark:bg-red-950/10"
+                  ? isQuestionCorrect
+                    ? "border-emerald-200 bg-emerald-50/15 dark:border-emerald-900/40 dark:bg-emerald-950/10"
+                    : "border-rose-200 bg-rose-50/15 dark:border-rose-900/40 dark:bg-rose-950/10"
                   : "border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50"
               }`}
             >
@@ -177,20 +202,36 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {optionsList.map(({ key, label }, optIdx) => {
-                  const isSelected = selectedOption === key;
-                  const isAnswerCorrectKey = String(detail?.correctAnswer) === String(key);
+                  const isSelected = String(selectedOption) === String(key);
+
+                  const serverCorrectKey = detail?.correctAnswer ?? detail?.correctOption ?? detail?.answer;
+
+                  const isThisCorrectOption =
+                    (serverCorrectKey !== undefined && String(serverCorrectKey) === String(key)) ||
+                    (serverCorrectKey !== undefined && Number(serverCorrectKey) === optIdx);
 
                   let optionStyle =
                     "border-zinc-200 bg-zinc-50/60 hover:border-zinc-300 hover:bg-zinc-100/60 dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:border-zinc-700";
+                  let badgeStyle =
+                    "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
 
                   if (result) {
-                    if (isAnswerCorrectKey) {
-                      optionStyle = "border-green-500 bg-green-50 text-green-900 dark:bg-green-950/40 dark:text-green-200 font-semibold";
-                    } else if (isSelected && !detail?.isCorrect) {
-                      optionStyle = "border-red-500 bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-200 line-through";
+                    if (isThisCorrectOption) {
+                      optionStyle =
+                        "border-emerald-500 bg-emerald-50 text-emerald-950 font-semibold ring-2 ring-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-500";
+                      badgeStyle =
+                        "border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-500";
+                    } else if (isSelected && !isQuestionCorrect) {
+                      optionStyle =
+                        "border-rose-500 bg-rose-50 text-rose-900 line-through dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-600";
+                      badgeStyle =
+                        "border-rose-500 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-500";
                     }
                   } else if (isSelected) {
-                    optionStyle = "border-blue-600 bg-blue-50 text-blue-900 ring-2 ring-blue-600/20 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100";
+                    optionStyle =
+                      "border-blue-600 bg-blue-50 text-blue-950 font-medium ring-2 ring-blue-600/25 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-100";
+                    badgeStyle =
+                      "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500";
                   }
 
                   return (
@@ -198,10 +239,12 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
                       key={key}
                       type="button"
                       disabled={Boolean(result) || isSubmitting}
-                      onClick={() => handleSelectOption(question.id, key)}
+                      onClick={() => handleSelectOption(qKey, key)}
                       className={`flex items-center gap-3 rounded-lg border p-3.5 text-right text-sm transition-all ${optionStyle}`}
                     >
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold">
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors ${badgeStyle}`}
+                      >
                         {optIdx + 1}
                       </span>
                       <span className="flex-1">
@@ -212,15 +255,15 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
                 })}
               </div>
 
-              {result && detail && (
+              {result && (
                 <div className="mt-4 flex items-center gap-2 text-xs font-medium">
-                  {detail.isCorrect ? (
-                    <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                  {isQuestionCorrect ? (
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
                       پاسخ شما صحیح است
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                    <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
                       <XCircle className="h-4 w-4" />
                       پاسخ اشتباه بود
                     </span>

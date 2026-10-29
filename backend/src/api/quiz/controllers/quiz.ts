@@ -1,15 +1,10 @@
-/**
- * quiz controller
- */
 import { factories } from '@strapi/strapi';
 
-// تعریف نوع داده‌ای برای ورودی و خروجی تصحیح آزمون
 interface SubmitBody {
-  answers?: Record<string | number, string>;
+  answers?: Record<string | number, string | number>;
 }
 
 export default factories.createCoreController('api::quiz.quiz', ({ strapi }) => ({
-  // ۱. اکشن واکشی لیست کوئیزها (با حذف پاسخ صحیح برای امنیت فرانت‌اند)
   async find(ctx) {
     const { data, meta } = await super.find(ctx);
     if (!data) return { data, meta };
@@ -26,7 +21,6 @@ export default factories.createCoreController('api::quiz.quiz', ({ strapi }) => 
     return { data: sanitizedData, meta };
   },
 
-  // ۲. اکشن واکشی یک کوئیز (با حذف پاسخ صحیح)
   async findOne(ctx) {
     const response = await super.findOne(ctx);
     if (!response || !response.data) return response;
@@ -39,13 +33,11 @@ export default factories.createCoreController('api::quiz.quiz', ({ strapi }) => 
     return response;
   },
 
-  // ۳. اکشن تصحیح اختصاصی سمت سرور
   async submit(ctx) {
     const { id } = ctx.params;
     const body = ctx.request.body as SubmitBody;
     const submittedAnswers = body?.answers || {};
 
-    // واکشی آزمون به همراه کلیدهای درست مستقیماً از دیتابیس
     const quiz = await strapi.documents('api::quiz.quiz').findOne({
       documentId: id,
       populate: ['questions'],
@@ -56,34 +48,70 @@ export default factories.createCoreController('api::quiz.quiz', ({ strapi }) => 
     }
 
     const questions: any[] = (quiz as any).questions || [];
-    let score = 0;
-    const totalQuestions = questions.length;
+    
+    let earnedScore = 0;        // مجموع نمره کسب‌شده توسط دانش‌آموز
+    let totalPossibleScore = 0; // مجموع کل بارم آزمون
+    let correctAnswersCount = 0; // تعداد سوالات درست
 
     const details = questions.map((question) => {
       const qId = question.id;
-      const selectedOption = submittedAnswers[qId] || submittedAnswers[String(qId)] || null;
-      const isCorrect = selectedOption !== null && selectedOption === question.correctAnswer;
+      const qDocId = question.documentId;
+
+      // وزن/بارم سوال از دیتابیس (اگر خالی بود پیش‌فرض ۱)
+      const questionWeight = Number(question.score) > 0 ? Number(question.score) : 1;
+      totalPossibleScore += questionWeight;
+
+      const rawSelected =
+        (qDocId && submittedAnswers[qDocId] !== undefined ? submittedAnswers[qDocId] : undefined) ??
+        (submittedAnswers[qId] !== undefined ? submittedAnswers[qId] : undefined) ??
+        (submittedAnswers[String(qId)] !== undefined ? submittedAnswers[String(qId)] : undefined) ??
+        null;
+
+      const selectedIndex =
+        rawSelected === null || rawSelected === undefined || rawSelected === ''
+          ? null
+          : Number(rawSelected);
+
+      const rawCorrect = question.correctAnswer;
+      const correctNumber =
+        rawCorrect === null || rawCorrect === undefined || rawCorrect === ''
+          ? null
+          : Number(rawCorrect);
+
+      const correctIndex = correctNumber === null ? null : correctNumber - 1;
+
+      const isCorrect = selectedIndex !== null && selectedIndex === correctIndex;
 
       if (isCorrect) {
-        score += 1;
+        earnedScore += questionWeight;
+        correctAnswersCount += 1;
       }
+
+      console.log(
+        `[DEBUG] Q_ID: ${qId} | Weight: ${questionWeight} | Selected: ${selectedIndex} | Correct: ${correctIndex} | Match: ${isCorrect}`
+      );
 
       return {
         questionId: qId,
-        selectedOption,
-        correctAnswer: question.correctAnswer,
+        selectedOption: selectedIndex,
+        correctAnswer: correctIndex,
         isCorrect,
+        weight: questionWeight,
       };
     });
 
-    const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+    const totalQuestions = questions.length;
+    // محاسبه درصد وزنی: (نمره کسب شده تقسیم بر کل بارم) ضربدر ۱۰۰
+    const percentage = totalPossibleScore > 0 ? Math.round((earnedScore / totalPossibleScore) * 100) : 0;
 
     return ctx.send({
       message: 'آزمون با موفقیت تصحیح شد.',
       result: {
-        score,
-        totalQuestions,
-        percentage,
+        score: earnedScore,              
+        totalScore: totalPossibleScore,   
+        correctCount: correctAnswersCount, 
+        totalQuestions,                   
+        percentage,                       
         details,
       },
     });

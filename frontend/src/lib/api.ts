@@ -33,14 +33,15 @@ export async function getQuizById(id: string | number): Promise<Quiz | null> {
 }
 
 export async function submitQuizAnswers(
-  payload: SubmissionPayload
+  quizId: string | number,
+  answers: Record<string | number, string>
 ): Promise<SubmissionResponse> {
-  const res = await fetch(`${STRAPI_BASE_URL}/api/quizzes/submit`, {
+  const res = await fetch(`${STRAPI_BASE_URL}/api/quizzes/${quizId}/submit`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ answers }),
   });
 
   if (!res.ok) {
@@ -52,3 +53,4 @@ export async function submitQuizAnswers(
 
   return res.json();
 }
+

@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getQuizById } from "@/lib/api";
 import QuizRunner from "@/components/QuizRunner";
 
+export const instant = false;
+
 interface QuizPageProps {
   params: Promise<{ id: string }>;
 }
