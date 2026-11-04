@@ -1,7 +1,17 @@
-import crypto from 'node:crypto';
+/**
+ * حساب دانش‌آموز روی همان مدل کاربرِ users-permissions ساخته می‌شود تا
+ * مدیریت کاربران (نقش، مسدودسازی، بازنشانی رمز) همه از پنل استراپی انجام شود.
+ *
+ * نقش‌ها:
+ *   - Student       → دانش‌آموزان (دسترسی محتوایی ندارد)
+ *   - Authenticated → دبیران
+ */
 
+const USER_UID = 'plugin::users-permissions.user';
+const STUDENT_ROLE_TYPE = 'student';
 const NATIONAL_CODE_PATTERN = /^\d{10}$/;
 const MIN_PASSWORD_LENGTH = 8;
+const STUDENT_EMAIL_DOMAIN = 'student.helliquiz.local';
 const MAX_ATTEMPTS_PER_SUBMISSION = 500;
 
 const isValidNationalCode = (value: unknown): value is string =>
@@ -12,12 +22,30 @@ const isValidNationalCode = (value: unknown): value is string =>
 const clean = (value: unknown, maxLength: number): string =>
   typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 
-/** پاسخ خطای یکدست برای این کنترلر */
 const fail = (ctx: any, status: number, message: string) =>
   ctx.throw(status, message, { code: 'STUDENT_AUTH_ERROR' });
 
+/** نقش دانش‌آموز را برمی‌گرداند و در صورت نبودن می‌سازد */
+const getStudentRole = async (strapi: any) => {
+  const roles = strapi.plugin('users-permissions').service('role') as any;
+
+  let role = await strapi.db
+    .query('plugin::users-permissions.role')
+    .findOne({ where: { type: STUDENT_ROLE_TYPE } });
+
+  if (!role) {
+    role = await roles.create({
+      name: 'Student',
+      description: 'دانش‌آموز — فقط کارنامه‌ی خودش را می‌بیند',
+      type: STUDENT_ROLE_TYPE,
+    });
+  }
+
+  return role;
+};
+
 export default {
-  /** ثبت‌نام دانش‌آموز با کد ملی */
+  /** POST /api/student-auth/register — ساخت حساب دانش‌آموز */
   async register(ctx: any) {
     const body = (ctx.request.body || {}) as Record<string, unknown>;
 
@@ -39,29 +67,37 @@ export default {
       return fail(ctx, 400, `رمز عبور باید دست‌کم ${MIN_PASSWORD_LENGTH} نویسه باشد.`);
     }
 
-    const service = strapi.service('api::student.student');
-    const existing = await service.findByNationalCode(nationalCode);
+    const existing = await strapi.db.query(USER_UID).findOne({
+      where: {
+        $or: [
+          { nationalCode },
+          { username: nationalCode },
+          { email: `${nationalCode}@${STUDENT_EMAIL_DOMAIN}` },
+        ],
+      },
+    });
 
     if (existing) {
       return fail(ctx, 409, 'این کد ملی قبلاً ثبت‌نام کرده است. از فرم ورود استفاده کنید.');
     }
 
-    const { hash, salt } = service.hashPassword(password);
+    const role = await getStudentRole(strapi);
 
-    let student;
+    let user;
     try {
-      student = await strapi.documents('api::student.student').create({
-        data: {
-          fullName,
-          studentClass,
-          nationalCode,
-          passwordHash: hash,
-          passwordSalt: salt,
-          lastLoginAt: new Date().toISOString(),
-        },
+      user = await strapi.plugin('users-permissions').service('user').add({
+        username: nationalCode,
+        email: `${nationalCode}@${STUDENT_EMAIL_DOMAIN}`,
+        password,
+        provider: 'local',
+        confirmed: true,
+        blocked: false,
+        role: role.id,
+        fullName,
+        studentClass,
+        nationalCode,
       });
     } catch (error: any) {
-      // ایندکس یکتای کد ملی در دیتابیس جلوی ثبت هم‌زمان را می‌گیرد
       if (String(error?.message || '').toLowerCase().includes('unique')) {
         return fail(ctx, 409, 'این کد ملی قبلاً ثبت‌نام کرده است.');
       }
@@ -70,67 +106,47 @@ export default {
     }
 
     return ctx.send({
-      token: service.issueToken(student),
-      student: publicStudent(student),
+      user: {
+        documentId: user.documentId,
+        fullName: user.fullName,
+        studentClass: user.studentClass,
+        nationalCode: user.nationalCode,
+      },
     });
   },
 
-  /** ورود دانش‌آموز */
-  async login(ctx: any) {
-    const body = (ctx.request.body || {}) as Record<string, unknown>;
-    const nationalCode = typeof body.nationalCode === 'string' ? body.nationalCode.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
-
-    if (!isValidNationalCode(nationalCode) || password.length === 0) {
-      return fail(ctx, 400, 'کد ملی (۱۰ رقم) و رمز عبور را کامل وارد کنید.');
-    }
-
-    const service = strapi.service('api::student.student');
-    const student = await service.findByNationalCode(nationalCode);
-
-    // پیام یکسان برای «کاربر ناموجود» و «رمز غلط» تا نشود کدهای ملی را شمارش کرد
-    const genericError = 'کد ملی یا رمز عبور اشتباه است.';
-
-    if (!student) {
-      // محاسبه‌ی ساختگی برای هم‌زمان‌سازی پاسخ‌ها و جلوگیری از افشای زمان‌بندی
-      crypto.scryptSync(password, 'dummy-salt-for-timing', 64);
-      return fail(ctx, 401, genericError);
-    }
-
-    if (!service.verifyPassword(password, student.passwordHash, student.passwordSalt)) {
-      return fail(ctx, 401, genericError);
-    }
-
-    await strapi.db.query('api::student.student').update({
-      where: { id: student.id },
-      data: { lastLoginAt: new Date().toISOString() },
-    });
-
-    return ctx.send({
-      token: service.issueToken(student),
-      student: publicStudent(student),
-    });
-  },
-
-  /** پروفایل دانش‌آموز + همه‌ی کارنامه‌های خودش */
+  /** GET /api/student-auth/me — پروفایل و کارنامه‌های خودِ دانش‌آموز */
   async me(ctx: any) {
-    const service = strapi.service('api::student.student');
-    const payload = service.readTokenFromContext(ctx);
-
-    if (!payload) {
+    const header = String(ctx.request.header.authorization || '');
+    if (!header.toLowerCase().startsWith('bearer ')) {
       return fail(ctx, 401, 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
     }
 
-    const student = await strapi.db.query('api::student.student').findOne({
-      where: { nationalCode: payload.nc },
+    let payload: any;
+    try {
+      payload = await strapi
+        .plugin('users-permissions')
+        .service('jwt')
+        .verify(header.slice(7).trim());
+    } catch {
+      return fail(ctx, 401, 'نشست شما منقضی شده است. لطفاً دوباره وارد شوید.');
+    }
+
+    const user: any = await strapi.db.query(USER_UID).findOne({
+      where: { id: payload?.id },
+      populate: ['role'],
     });
 
-    if (!student) {
-      return fail(ctx, 401, 'حساب دانش‌آموزی یافت نشد.');
+    if (!user || user.blocked) {
+      return fail(ctx, 401, 'حساب کاربری در دسترس نیست.');
+    }
+
+    if (!user.nationalCode) {
+      return fail(ctx, 403, 'این حساب به یک دانش‌آموز متصل نیست.');
     }
 
     const submissions = await strapi.documents('api::submission.submission').findMany({
-      filters: { nationalCode: { $eq: student.nationalCode } },
+      filters: { nationalCode: { $eq: user.nationalCode } },
       populate: { quiz: { fields: ['title', 'durationMinutes', 'documentId'] } },
       status: 'published',
       sort: ['createdAt:desc'],
@@ -138,11 +154,15 @@ export default {
     });
 
     const attempts = submissions.map((submission: any) => shapeSubmission(submission));
-
     const percentages = attempts.map((item) => item.percentage);
 
     return ctx.send({
-      student: publicStudent(student),
+      student: {
+        documentId: user.documentId,
+        fullName: user.fullName || user.username,
+        studentClass: user.studentClass || '-',
+        nationalCode: user.nationalCode,
+      },
       attempts,
       stats: {
         attempts: attempts.length,
@@ -156,15 +176,6 @@ export default {
     });
   },
 };
-
-function publicStudent(student: any) {
-  return {
-    documentId: student.documentId,
-    fullName: student.fullName,
-    studentClass: student.studentClass,
-    nationalCode: student.nationalCode,
-  };
-}
 
 /** یک رکورد سابمیشن را به شکل امن و قابل‌مصرف برای پنل دانش‌آموز تبدیل می‌کند */
 function shapeSubmission(submission: any) {
@@ -194,6 +205,7 @@ function shapeSubmission(submission: any) {
     },
     details: details.map((detail: any) => ({
       questionText: detail.questionText || '',
+      options: Array.isArray(detail.options) ? detail.options : undefined,
       selectedOption: detail.selectedOption ?? null,
       correctAnswer: detail.correctAnswer ?? null,
       isCorrect: Boolean(detail.isCorrect),

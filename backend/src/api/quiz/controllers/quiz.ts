@@ -1,3 +1,4 @@
+import { resolveStudentFromContext } from '../../../utils/student-identity';
 import { factories } from '@strapi/strapi';
 
 /* ============================================================================
@@ -125,22 +126,14 @@ export default factories.createCoreController(
       let studentClass = cleanText(body.studentClass, 40);
       let nationalCode = cleanText(body.nationalCode, 10);
 
-      // اگر دانش‌آموز وارد حسابش شده باشد، هویت از حساب خوانده می‌شود
-      // تا کسی نتواند با کد ملی دیگری کارنامه بسازد.
-      const studentPayload = strapi
-        .service('api::student.student')
-        .readTokenFromContext(ctx);
+      // اگر دانش‌آموز وارد حسابش شده باشد، هویت از حسابش (users-permissions)
+      // خوانده می‌شود تا کسی نتواند با کد ملی دیگری کارنامه بسازد.
+      const account = await resolveStudentFromContext(ctx);
 
-      if (studentPayload) {
-        const account = await strapi.db.query('api::student.student').findOne({
-          where: { nationalCode: studentPayload.nc },
-        });
-
-        if (account) {
-          studentName = account.fullName;
-          studentClass = account.studentClass;
-          nationalCode = account.nationalCode;
-        }
+      if (account) {
+        studentName = cleanText(account.fullName, 80) || studentName;
+        studentClass = cleanText(account.studentClass, 40) || studentClass;
+        nationalCode = account.nationalCode;
       }
 
       if (studentName.length < 3) {

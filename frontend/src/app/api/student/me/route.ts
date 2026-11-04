@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStudentSession } from "@/lib/student-session";
 
-
 export async function GET() {
   const session = await getStudentSession();
 

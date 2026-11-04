@@ -1,10 +1,7 @@
 /**
- * پل ارتباطی سمت سرور با مسیرهای حساب دانش‌آموز در استراپی.
- * توکن دانش‌آموز فقط داخل کوکی httpOnly می‌ماند و در دسترس جاوااسکریپت نیست.
+ * تایپ‌های مشترک پنل دانش‌آموز و ابزارهای سبک.
+ * منطق نشست در `src/lib/auth.ts` و `src/lib/student-session.ts` است.
  */
-
-export const STUDENT_COOKIE_NAME = "helliquiz_student";
-export const STUDENT_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // ۳۰ روز
 
 export const STRAPI_INTERNAL_URL =
   process.env.STRAPI_INTERNAL_URL ||
@@ -55,59 +52,10 @@ export interface StudentSession {
   };
 }
 
-/** ساختار پاسخ مسیرهای حساب دانش‌آموز */
-export interface StudentApiData {
-  student?: StudentProfile;
-  token?: string;
-  attempts?: Attempt[];
-  stats?: StudentSession["stats"];
-  error?: {
-    message?: string;
-    details?: { errors?: Array<{ message?: string }> };
-  };
-  message?: string;
-}
-
-/** پاسخ خام استراپی را به‌صورت امن به تایپ‌های سمت کلاینت تبدیل می‌کند */
-export async function requestStudentApi(
-  path: string,
-  init: RequestInit & { token?: string | null } = {}
-): Promise<{ ok: boolean; status: number; data: StudentApiData }> {
-  const { token, headers, ...rest } = init;
-
-  try {
-    const response = await fetch(`${STRAPI_INTERNAL_URL}/api/student-auth/${path}`, {
-      ...rest,
-      headers: {
-        "content-type": "application/json",
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
-        ...(headers as Record<string, string>),
-      },
-      cache: "no-store",
-    });
-
-    const data = (await response.json().catch(() => ({}))) as StudentApiData;
-    return { ok: response.ok, status: response.status, data };
-  } catch {
-    return {
-      ok: false,
-      status: 503,
-      data: {
-        error: {
-          message: "ارتباط با سرور آزمون برقرار نشد. لطفاً دوباره تلاش کنید.",
-        },
-      },
-    };
-  }
-}
-
 /** پیام خطای فارسی از پاسخ استراپی */
-export function extractErrorMessage(data: StudentApiData, fallback: string): string {
-  return (
-    data?.error?.message ||
-    data?.message ||
-    (Array.isArray(data?.error?.details?.errors) &&
-      data.error.details.errors[0]?.message) ||
-    fallback
-  );
+export function extractErrorMessage(
+  data: { error?: { message?: string } } | null | undefined,
+  fallback: string
+): string {
+  return data?.error?.message || fallback;
 }

@@ -6,7 +6,7 @@
 | --- | --- |
 | 🧑‍🎓 **دانش‌آموز** | ثبت‌نام/ورود با کد ملی، شرکت در آزمون با تایمر، دیدن درصد و نمره، **کارنامه‌ی کامل با پاسخ‌نامه‌ی تفکیکی (درست/غلط)** |
 | 🧑‍🏫 **دبیر** | ورود امن، مشاهده و ویرایش کارنامه‌ها، ساخت/ویرایش/حذف آزمون و سؤال، آمار کلاس |
-| 🛠 **مدیر (Strapi Admin)** | مدیریت کامل داده‌ها، نقش‌ها و تنظیمات |
+| 🛠 **مدیر (Strapi Admin)** | مدیریت کامل داده‌ها، آزمون‌ها و **کاربران** (دبیر و دانش‌آموز): ویرایش، مسدودسازی، بازنشانی رمز، تغییر کلاس |
 
 ---
 
@@ -88,13 +88,14 @@ npm run dev                   # http://localhost:3000
 | `ADMIN_JWT_SECRET` | کلید توکن پنل ادمین | — |
 | `API_TOKEN_SALT` / `TRANSFER_TOKEN_SALT` | نمک توکن‌های API | — |
 | `ENCRYPTION_KEY` | کلید رمزنگاری | — |
-| `JWT_SECRET` | کلید توکن دبیران (users-permissions) | — |
-| `STUDENT_TOKEN_SECRET` | کلید امضای توکن دانش‌آموز | اولین `APP_KEYS` |
+| `JWT_SECRET` | کلید امضای توکن‌های users-permissions (دبیر و دانش‌آموز) | — |
 | `DATABASE_CLIENT` | `sqlite` \| `postgres` \| `mysql` | `sqlite` |
 | `DATABASE_FILENAME` | مسیر فایل SQLite | `.tmp/data.db` |
 | `CORS_ORIGINS` | دامنه‌های مجاز (کاما) | `*` |
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX` | پنجره و سقف نرخ درخواست عمومی | `60000` / `300` |
 | `SEED_DEMO` | ساخت داده و حساب‌های نمونه | `false` |
+| `SEED_TEACHER_EMAIL` / `SEED_TEACHER_USERNAME` / `SEED_TEACHER_PASSWORD` | حساب نمایشی دبیر | `teacher@helli.ir` / `teacher` / `teacher1234` |
+| `SEED_STUDENT_NATIONAL_CODE` / `SEED_STUDENT_PASSWORD` | حساب نمایشی دانش‌آموز | `0012345678` / `student1234` |
 
 ### فرانت‌اند (`frontend/.env.local`)
 
@@ -110,15 +111,19 @@ npm run dev                   # http://localhost:3000
 ```
 Quiz ──1:N──► Question          (گزینه‌ها JSON، correctOption صفر-بیس، score)
 Quiz ──1:N──► Submission        (نمره، زمان، پاسخ‌نامه JSON، submissionKey یکتا)
-Student                          (نام، کلاس، کد ملی یکتا، هش رمز عبور scrypt)
+
+User (users-permissions) ──► Role
+       ├─ دبیر  → role: Authenticated
+       └─ دانش‌آموز → role: Student  +  fullName, studentClass, nationalCode(unique)
 ```
 
 - **`correctOption`**: ایندکس صفر-بیس گزینه‌ی صحیح (`0` یعنی گزینه اول). فیلد قدیمی
   `correctAnswer` (یک-بیس) فقط برای سازگاری خوانده می‌شود.
 - **`submissionKey`**: ترکیب `documentId آزمون + کد ملی` با **ایندکس یکتا در دیتابیس** →
   هر دانش‌آموز هر آزمون را فقط یک بار می‌تواند ثبت کند.
-- **`passwordHash` / `passwordSalt`**: با `scrypt`؛ هرگز از هیچ API‌ای بیرون نمی‌رود
-  (content-type دانش‌آموز هیچ مسیر عمومی CRUD ندارد).
+- **رمز عبور**: با `bcrypt` در users-permissions هش می‌شود؛ هرگز در هیچ خروجی‌ای
+  برنمی‌گردد. بازنشانی/تغییر رمز از پنل ادمین انجام می‌شود.
+- **`nationalCode`**: ستون یکتا روی کاربر؛ هم‌زمان `username` دانش‌آموز است
 
 ---
 
@@ -134,17 +139,22 @@ Student                          (نام، کلاس، کد ملی یکتا، ه�
 ### دانش‌آموز
 | متد | مسیر | کار |
 | --- | --- | --- |
-| `POST` | `/api/student-auth/register` | ثبت‌نام با نام، کلاس، کد ملی و رمز (حداقل ۸ نویسه) |
-| `POST` | `/api/student-auth/login` | ورود؛ توکن HMAC-SHA256 با انقضای ۳۰ روز |
-| `GET` | `/api/student-auth/me` | پروفایل + همه‌ی کارنامه‌های خودش با جزئیات |
+| `POST` | `/api/student-auth/register` | ثبت‌نام: نام، کلاس، کد ملی ۱۰ رقمی و رمز ≥ ۸ نویسه |
+| `POST` | `/api/auth/local` | ورود (users-permissions) با `identifier` = کد ملی |
+| `GET` | `/api/student-auth/me` | پروفایل + همه‌ی کارنامه‌های خودش با جزئیات (`Bearer <jwt>`) |
+
+هر سه روی **users-permissions** سوارند: دانش‌آموز یک ردیف واقعی در `up_users` با نقش
+`Student` است. حساب او از `/admin` قابل ویرایش، مسدودسازی و بازنشانی رمز است.
 
 در سمت Next:
 `POST /api/student/login`، `POST /api/student/register`، `POST /api/student/logout`، `GET /api/student/me`
 — توکن در کوکی **httpOnly** نگه‌داری می‌شود و جاوااسکریپت به آن دسترسی ندارد.
 
-### دبیر (JWT از `POST /api/auth/local`)
+### دبیر (نقش `Authenticated`)
 `/api/quizzes`, `/api/questions`, `/api/submissions` — CRUD کامل با JWT.
 پاسخ صحیح سؤال‌ها **فقط** برای دبیر احراز هویت‌شده در خروجی وجود دارد.
+نقش `Student` هیچ مجوزی روی این مسیرها ندارد (۴۰۳)؛ نشست دبیر و دانش‌آموز هم
+از هم جدا هستند و فرم هرکدام حساب نقش مقابل را نمی‌پذیرد.
 
 ### نشست دبیر (سمت Next)
 | متد | مسیر | کار |
@@ -162,6 +172,27 @@ Student                          (نام، کلاس، کد ملی یکتا، ه�
 
 ---
 
+## 👥 حساب‌ها و نقش‌ها
+
+همه‌ی کاربران (دبیر و دانش‌آموز) در **users-permissions** استراپی هستند؛ یعنی
+«کاربران و نقش‌ها» در `/admin` تنها منبع حقیقت است:
+
+| نقش | نوع | مجوزها |
+| --- | --- | --- |
+| `Public` | عمومی | فقط `quiz.find` / `quiz.findOne` |
+| `Authenticated` | دبیران | CRUD کامل روی `quiz`, `question`, `submission` |
+| `Student` | دانش‌آموزان (نقش پیش‌فرض ثبت‌نام) | هیچ مجوزی روی content-typeها؛ فقط `/api/student-auth/me` |
+
+در `/admin → Content Manager → User` می‌توانید برای هر دانش‌آموز `fullName`،
+`studentClass` و `nationalCode` را ویرایش کنید، حساب را با `blocked` قفل کنید یا
+با گزینه‌ی تغییر رمز، رمز تازه بدهید. نقش پیش‌فرض ثبت‌نام‌های جدید در اولین
+بوت روی `Student` تنظیم می‌شود (هیچ ثبت‌نامی به‌طور پیش‌فرض دبیر نمی‌شود).
+
+دبیران را در همان صفحه با نقش `Authenticated` بسازید — یا از `SEED_DEMO=true`
+برای ساخت خودکار استفاده کنید.
+
+---
+
 ## 🔒 سخت‌سازی امنیتی (نسبت به نسخه‌ی اولیه)
 
 - ✅ **حذف کامل وابستگی به `127.0.0.1` در مرورگر** — همه‌چیز از پروکسی سمت سرور
@@ -172,11 +203,13 @@ Student                          (نام، کلاس، کد ملی یکتا، ه�
 - ✅ **اعتبارسنجی سمت سرور** — کد ملی ۱۰ رقمی، نام/کلاس، سقف زمان آزمون، اندازه بدنه (`256kb`)
 - ✅ **هویت از حساب، نه از کلاینت** — اگر دانش‌آموز وارد شده باشد، نام/کد ملی از پروفایل خوانده می‌شود
 - ✅ **پاسخ‌های صحیح در API عمومی وجود ندارد** — نه در فهرست و نه در تک‌آزمون
-- ✅ **رمز عبور با scrypt + نمک تصادفی** و مقایسه‌ی زمان-ثابت؛ پیام خطای یکسان برای
-  «کاربر ناموجود» و «رمز غلط»
+- ✅ **رمز عبور با bcrypt در users-permissions** (نه پیاده‌سازی دستی)؛ پیام خطای یکسان
+  برای «کاربر ناموجود» و «رمز غلط» تا کد ملی کسی لو نرود
+- ✅ **جداسازی نقش‌ها** — دانش‌آموز هیچ‌وقت به کارنامه‌های دیگران یا API دبیر دسترسی ندارد؛
+  هویت از روی توکن سرور خوانده می‌شود، نه از ورودی فرم
 - ✅ **کارنامه‌ها فقط برای دبیر** — مسیر هسته‌ی `submissions` بدون JWT دبیر ۴۰۳ می‌دهد
-- ✅ **نشست دبیر در کوکی httpOnly** — توکن دیگر در `localStorage` نیست (ضد XSS) و با
-  توکن تازه‌سازی به‌صورت شفاف و بدون خروج کاربر تمدید می‌شود
+- ✅ **نشست دبیر و دانش‌آموز در کوکی httpOnly** — هیچ توکنی در `localStorage` نیست
+  (ضد XSS) و با توکن تازه‌سازی به‌صورت شفاف و بدون خروج کاربر تمدید می‌شود
 
 ---
 
@@ -192,9 +225,18 @@ curl -s -X POST http://127.0.0.1:3000/api/student/login \
   -d '{"nationalCode":"0012345678","password":"student1234"}'
 
 # ورود دبیر
-curl -s -X POST http://127.0.0.1:3000/api/strapi/auth/local \
+curl -s -X POST http://127.0.0.1:3000/api/teacher/login \
   -H 'Content-Type: application/json' \
   -d '{"identifier":"teacher@helli.ir","password":"teacher1234"}'
+
+# مسیر کامل دانش‌آموز: ثبت‌نام → نشست → کارنامه
+curl -s -c jar.txt -X POST http://127.0.0.1:3000/api/student/register \
+  -H 'Content-Type: application/json' \
+  -d '{"fullName":"سارا رضایی","studentClass":"نهم ۲","nationalCode":"1234567890","password":"sara12345"}'
+curl -s -b jar.txt http://127.0.0.1:3000/api/student/me | head -c 300
+
+# نقش دانش‌آموز نباید به API دبیر دسترسی داشته باشد (باید 403 باشد)
+curl -s -o /dev/null -w '%{http_code}\n' -b jar.txt http://127.0.0.1:3000/api/strapi/submissions
 ```
 
 ---
@@ -209,10 +251,11 @@ helliquiz/
 │       ├── api/
 │       │   ├── quiz/              # کنترلر تصحیح + API عمومی آزمون
 │       │   ├── question/          # سؤال‌ها
-│       │   ├── submission/        # کارنامه‌ها (فقط دبیر)
-│       │   └── student/           # حساب دانش‌آموز + مسیرهای student-auth
+│       │   └── submission/        # کارنامه‌ها + مسیرهای student-auth (ثبت‌نام/من)
+│       ├── extensions/
+│       │   └── users-permissions/  # فیلدهای دانش‌آموز روی کاربر (نام، کلاس، کد ملی)
 │       ├── middlewares/rate-limit.ts
-│       └── index.ts               # مجوزهای پیش‌فرض + داده‌ی نمایشی
+│       └── index.ts               # نقش‌ها، مجوزها، نقش پیش‌فرض + داده‌ی نمایشی
 ├── frontend/                      # Next.js 16 (App Router)
 │   └── src/
 │       ├── app/
@@ -225,7 +268,7 @@ helliquiz/
 │       │   ├── student/           # StudentAuth, StudentDashboard
 │       │   ├── QuizRunner.tsx
 │       │   └── MathRenderer.tsx   # رندر $...$ و $$...$$
-│       └── lib/                   # api, student-api, student-session, teacher-api
+│       └── lib/                   # api, auth (کوکی/توکن), student-api, student-session
 └── package.json                   # اسکریپت‌های کمکی ریشه (setup / dev:*)
 ```
 
@@ -240,7 +283,9 @@ helliquiz/
 | نشانه | علت / راه‌حل |
 | --- | --- |
 | صفحه می‌گوید «آزمون فعالی یافت نشد» | Strapi بالا نیست یا `STRAPI_INTERNAL_URL` اشتباه است |
-| `403 Forbidden` روی `/api/questions` | نرمال است؛ فقط دبیر دسترسی دارد. مجوزها در بوت‌استرپ خودکار ساخته می‌شوند |
+| `403 Forbidden` روی `/api/questions` یا `/api/submissions` | نرمال است؛ فقط دبیر دسترسی دارد. مجوزها در بوت‌استرپ خودکار ساخته می‌شوند |
+| دانش‌آموز وارد می‌شود ولی «کارنامه‌ای ثبت نشده» می‌بیند | کد ملی حساب با `nationalCode` کارنامه یکی نیست؛ در `/admin` اصلاح کنید |
+| ثبت‌نام می‌گوید کد ملی تکراری است (۴۰۹) | همان کد ملی از قبل در `User` وجود دارد؛ از فرم ورود استفاده کنید یا در `/admin` رمز را عوض کنید |
 | `429 Too Many Requests` | محدودیت نرخ فعال شده؛ چند دقیقه صبر کنید یا `RATE_LIMIT_MAX` را بالا ببرید |
 | کارنامه ذخیره نمی‌شود | احتمالاً قبلاً ثبت شده (۴۰۹) یا کد ملی نامعتبر است (۴۰۰) |
 | `npm install` روی better-sqlite3 شکست می‌خورد | `npm_config_nodedir=/usr/local npm_config_build_from_source=true npm install` |

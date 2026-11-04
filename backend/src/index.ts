@@ -1,8 +1,17 @@
 import type { Core } from '@strapi/strapi';
 
 /* ============================================================================
- * مجوزهای پیش‌فرض
+ * نقش‌ها و مجوزها
+ *
+ * همه‌ی کاربران (دبیر و دانش‌آموز) در مدل users-permissions هستند:
+ *   - Authenticated → دبیران (دسترسی کامل به آزمون‌ها، سؤال‌ها و کارنامه‌ها)
+ *   - Student       → دانش‌آموزان (بدون مجوز محتوایی؛ کارنامه‌شان را فقط از
+ *                     مسیر /api/student-auth/me می‌گیرند)
  * ==========================================================================*/
+
+const USER_UID = 'plugin::users-permissions.user';
+const STUDENT_ROLE_TYPE = 'student';
+const STUDENT_EMAIL_DOMAIN = 'student.helliquiz.local';
 
 const PUBLIC_ACTIONS = ['api::quiz.quiz.find', 'api::quiz.quiz.findOne'];
 
@@ -24,24 +33,43 @@ const AUTHENTICATED_ACTIONS = [
   'api::submission.submission.delete',
 ];
 
-const ensureRolePermissions = async (strapi: Core.Strapi, roleType: string, actions: string[]) => {
-  const role = await strapi.db
+const ensureRole = async (strapi: Core.Strapi, type: string, name: string, description: string) => {
+  let role = await strapi.db
     .query('plugin::users-permissions.role')
-    .findOne({ where: { type: roleType } });
+    .findOne({ where: { type } });
 
-  if (!role) return;
+  if (!role) {
+    role = await strapi.db.query('plugin::users-permissions.role').create({
+      data: { name, description, type },
+    });
+    strapi.log.info(`[bootstrap] نقش «${name}» ساخته شد.`);
+  }
 
+  return role;
+};
+
+const ensureRolePermissions = async (strapi: Core.Strapi, roleId: number, actions: string[]) => {
   for (const action of actions) {
     const existing = await strapi.db
       .query('plugin::users-permissions.permission')
-      .findOne({ where: { action, role: { id: role.id } } });
+      .findOne({ where: { action, role: { id: roleId } } });
 
     if (!existing) {
       await strapi.db
         .query('plugin::users-permissions.permission')
-        .create({ data: { action, role: role.id } });
+        .create({ data: { action, role: roleId } });
     }
   }
+};
+
+/** نقش پیش‌فرض ثبت‌نام را روی «Student» تنظیم می‌کند */
+const setDefaultRegistrationRole = async (strapi: Core.Strapi, roleId: number) => {
+  const store = strapi.store({ type: 'plugin', name: 'users-permissions', key: 'advanced' });
+  const current = ((await store.get()) || {}) as Record<string, unknown>;
+
+  if (current.default_role === roleId) return;
+
+  await store.set({ value: { ...current, default_role: roleId } });
 };
 
 /* ============================================================================
@@ -98,20 +126,13 @@ const DEMO_QUIZZES = [
   },
 ];
 
-const seedTeacher = async (strapi: Core.Strapi) => {
+const seedTeacher = async (strapi: Core.Strapi, teacherRoleId: number) => {
   const email = process.env.SEED_TEACHER_EMAIL || 'teacher@helli.ir';
   const username = process.env.SEED_TEACHER_USERNAME || 'teacher';
   const password = process.env.SEED_TEACHER_PASSWORD || 'teacher1234';
 
-  const existing = await strapi.db
-    .query('plugin::users-permissions.user')
-    .findOne({ where: { email } });
-
+  const existing = await strapi.db.query(USER_UID).findOne({ where: { email } });
   if (existing) return;
-
-  const role = await strapi.db
-    .query('plugin::users-permissions.role')
-    .findOne({ where: { type: 'authenticated' } });
 
   await strapi.plugin('users-permissions').service('user').add({
     username,
@@ -120,7 +141,7 @@ const seedTeacher = async (strapi: Core.Strapi) => {
     provider: 'local',
     confirmed: true,
     blocked: false,
-    role: role?.id,
+    role: teacherRoleId,
   });
 
   strapi.log.info(`[seed] حساب دبیر ساخته شد → ${email} / ${password}`);
@@ -158,23 +179,26 @@ const seedQuizzes = async (strapi: Core.Strapi) => {
   strapi.log.info('[seed] آزمون‌های نمایشی ایجاد شدند.');
 };
 
-const seedStudent = async (strapi: Core.Strapi) => {
+const seedStudent = async (strapi: Core.Strapi, studentRoleId: number) => {
   const nationalCode = process.env.SEED_STUDENT_NATIONAL_CODE || '0012345678';
   const password = process.env.SEED_STUDENT_PASSWORD || 'student1234';
 
-  const service = strapi.service('api::student.student');
-  const existing = await service.findByNationalCode(nationalCode);
+  const existing: any = await strapi.db
+    .query(USER_UID)
+    .findOne({ where: { nationalCode } });
 
   if (!existing) {
-    const { hash, salt } = service.hashPassword(password);
-    await strapi.documents('api::student.student').create({
-      data: {
-        fullName: 'دانش‌آموز نمونه',
-        studentClass: 'نهم ۱',
-        nationalCode,
-        passwordHash: hash,
-        passwordSalt: salt,
-      },
+    await strapi.plugin('users-permissions').service('user').add({
+      username: nationalCode,
+      email: `${nationalCode}@${STUDENT_EMAIL_DOMAIN}`,
+      password,
+      provider: 'local',
+      confirmed: true,
+      blocked: false,
+      role: studentRoleId,
+      fullName: 'دانش‌آموز نمونه',
+      studentClass: 'نهم ۱',
+      nationalCode,
     });
     strapi.log.info(`[seed] حساب دانش‌آموز ساخته شد → ${nationalCode} / ${password}`);
   }
@@ -248,25 +272,76 @@ const seedStudent = async (strapi: Core.Strapi) => {
  * Lifecycle
  * ==========================================================================*/
 
+/* ------------------------------------------------------------------------- *
+ * ایندکس یکتای «آزمون + کد ملی» روی کارنامه‌ها
+ * Strapi روی جدولِ از پیش موجود، قید unique را نمی‌سازد؛ پس خودمان می‌سازیم.
+ * ------------------------------------------------------------------------- */
+async function ensureUniqueSubmissionIndex(strapi: Core.Strapi) {
+  const knex = strapi.db.connection;
+  const client = String(knex.client.config.client || '');
+  const table = 'submissions';
+
+  try {
+    const hasTable = await knex.schema.hasTable(table);
+    if (!hasTable) return;
+
+    // ۱) کارنامه‌های تکراری (اگر از نسخه‌های قبلی مانده‌اند) → نگه‌داشتن قدیمی‌ترین
+    await knex.raw(
+      `DELETE FROM ${table} WHERE id NOT IN (SELECT MIN(id) FROM ${table} GROUP BY submission_key)`
+    );
+
+    // ۲) ساخت ایندکس یکتا (idempotent)
+    if (client.includes('sqlite') || client.includes('postgres') || client.includes('pg')) {
+      await knex.raw(
+        `CREATE UNIQUE INDEX IF NOT EXISTS submissions_key_unique ON ${table} (submission_key)`
+      );
+    } else {
+      const [rows] = await knex.raw(
+        `SELECT COUNT(*) AS count FROM information_schema.statistics
+          WHERE table_name = '${table}' AND index_name = 'submissions_key_unique'`
+      );
+      const exists = Number((rows as any)?.[0]?.count || 0) > 0;
+      if (!exists) {
+        await knex.raw(
+          `ALTER TABLE ${table} ADD UNIQUE INDEX submissions_key_unique (submission_key)`
+        );
+      }
+    }
+
+    strapi.log.info('ایندکس یکتای کارنامه‌ها بررسی/ساخته شد.');
+  } catch (error) {
+    strapi.log.warn('ساخت ایندکس یکتای کارنامه‌ها ناموفق بود:', error);
+  }
+}
+
+
 export default {
   register() {},
 
+
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     try {
-      await ensureRolePermissions(strapi, 'public', PUBLIC_ACTIONS);
-      await ensureRolePermissions(strapi, 'authenticated', AUTHENTICATED_ACTIONS);
-    } catch (error) {
-      strapi.log.error('تنظیم مجوزهای پیش‌فرض ناموفق بود:', error);
-    }
+      const publicRole = await ensureRole(strapi, 'public', 'Public', 'عمومی');
+      const teacherRole = await ensureRole(strapi, 'authenticated', 'Authenticated', 'دبیران');
+      const studentRole = await ensureRole(
+        strapi,
+        STUDENT_ROLE_TYPE,
+        'Student',
+        'دانش‌آموز — فقط کارنامه‌ی خودش را می‌بیند'
+      );
 
-    if (process.env.SEED_DEMO !== 'true') return;
+      await ensureRolePermissions(strapi, publicRole.id, PUBLIC_ACTIONS);
+      await ensureRolePermissions(strapi, teacherRole.id, AUTHENTICATED_ACTIONS);
+      await setDefaultRegistrationRole(strapi, studentRole.id);
+      await ensureUniqueSubmissionIndex(strapi);
 
-    try {
-      await seedTeacher(strapi);
+      if (process.env.SEED_DEMO !== 'true') return;
+
+      await seedTeacher(strapi, teacherRole.id);
       await seedQuizzes(strapi);
-      await seedStudent(strapi);
+      await seedStudent(strapi, studentRole.id);
     } catch (error) {
-      strapi.log.error('ساخت داده‌ی نمایشی ناموفق بود:', error);
+      strapi.log.error('راه‌اندازی اولیه (نقش‌ها/داده‌ی نمایشی) ناموفق بود:', error);
     }
   },
 };

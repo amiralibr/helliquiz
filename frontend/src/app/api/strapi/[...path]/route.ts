@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { STUDENT_COOKIE_NAME, STRAPI_INTERNAL_URL } from "@/lib/student-api";
+import { STRAPI_INTERNAL_URL } from "@/lib/student-api";
 import {
-  TEACHER_ACCESS_COOKIE,
-  TEACHER_REFRESH_COOKIE,
-  TEACHER_REFRESH_SIG_COOKIE,
-  isTeacherTokenUsable,
-  refreshTeacherAccessToken,
-  teacherAccessCookieOptions,
-  teacherRefreshCookieOptions,
-} from "@/lib/teacher-api";
+  AUTH_COOKIES,
+  accessCookieOptions,
+  isTokenUsable,
+  refreshAccessToken,
+  refreshCookieOptions,
+  type AuthKind,
+} from "@/lib/auth";
 
 /**
  * پروکسی سمت سرور به استراپی.
@@ -16,12 +15,11 @@ import {
  * - مرورگر هرگز مستقیماً با Strapi صحبت نمی‌کند (نه localhost و نه 127.0.0.1).
  * - اگر هدر Authorization نباشد، توکنِ داخل کوکی httpOnly (دبیر یا دانش‌آموز)
  *   به‌صورت Bearer منتقل می‌شود؛ بنابراین توکن هرگز در دسترس جاوااسکریپت نیست.
- * - با ۴۰۱ شدنِ نشست دبیر، توکن دسترسی به‌صورت شفاف تازه‌سازی و درخواست تکرار می‌شود.
+ * - اگر توکن دسترسی منقضی شده باشد، به‌صورت شفاف با توکن تازه‌سازی تمدید
+ *   و همان درخواست تکرار می‌شود.
  */
 
 const FORWARDED_HEADERS = ["authorization", "content-type", "accept"];
-
-type AuthSource = "header" | "teacher" | "student" | "none";
 
 const performRequest = (
   targetUrl: string,
@@ -63,31 +61,31 @@ async function proxy(
   if (forwardedFor) headers.set("x-forwarded-for", forwardedFor);
 
   // ---------- تعیین منبع احراز هویت ----------
-  let authSource: AuthSource = "none";
-  const refreshToken = request.cookies.get(TEACHER_REFRESH_COOKIE)?.value;
-  const refreshSig = request.cookies.get(TEACHER_REFRESH_SIG_COOKIE)?.value;
-
+  let activeKind: AuthKind | null = null;
   let rotatedSession: { token: string; refresh?: string; sig?: string } | null = null;
 
-  if (headers.has("authorization")) {
-    authSource = "header";
-  } else {
-    const teacherToken = request.cookies.get(TEACHER_ACCESS_COOKIE)?.value;
-    const studentToken = request.cookies.get(STUDENT_COOKIE_NAME)?.value;
+  if (!headers.has("authorization")) {
+    // دبیر اولویت دارد؛ سپس دانش‌آموز
+    const candidates: AuthKind[] = ["teacher", "student"];
 
-    if (teacherToken || refreshToken) {
-      authSource = "teacher";
+    for (const kind of candidates) {
+      const names = AUTH_COOKIES[kind];
+      const accessToken = request.cookies.get(names.access)?.value;
+      const refreshToken = request.cookies.get(names.refresh)?.value;
+      const refreshSig = request.cookies.get(names.sig)?.value;
 
-      // اگر توکن دسترسی منقضی/ناقص است، پیش از ارسال تازه‌سازی می‌کنیم
-      if (!isTeacherTokenUsable(teacherToken)) {
-        rotatedSession = await refreshTeacherAccessToken(refreshToken, refreshSig);
+      if (!accessToken && !refreshToken) continue;
+
+      activeKind = kind;
+
+      if (!isTokenUsable(accessToken)) {
+        rotatedSession = await refreshAccessToken(refreshToken, refreshSig);
       }
 
-      const accessToken = rotatedSession?.token ?? teacherToken;
-      if (accessToken) headers.set("authorization", `Bearer ${accessToken}`);
-    } else if (studentToken) {
-      headers.set("authorization", `Bearer ${studentToken}`);
-      authSource = "student";
+      const effective = rotatedSession?.token ?? accessToken;
+      if (effective) headers.set("authorization", `Bearer ${effective}`);
+
+      break;
     }
   }
 
@@ -101,41 +99,29 @@ async function proxy(
       },
     });
 
-    if (rotatedSession) {
-      response.cookies.set(
-        TEACHER_ACCESS_COOKIE,
-        rotatedSession.token,
-        teacherAccessCookieOptions
-      );
+    if (rotatedSession && activeKind) {
+      const names = AUTH_COOKIES[activeKind];
+
+      response.cookies.set(names.access, rotatedSession.token, accessCookieOptions);
 
       if (rotatedSession.refresh && rotatedSession.sig) {
-        response.cookies.set(
-          TEACHER_REFRESH_COOKIE,
-          rotatedSession.refresh,
-          teacherRefreshCookieOptions
-        );
-        response.cookies.set(
-          TEACHER_REFRESH_SIG_COOKIE,
-          rotatedSession.sig,
-          teacherRefreshCookieOptions
-        );
+        response.cookies.set(names.refresh, rotatedSession.refresh, refreshCookieOptions);
+        response.cookies.set(names.sig, rotatedSession.sig, refreshCookieOptions);
       }
     }
 
     // نشست واقعاً از کار افتاده → کوکی‌ها پاک می‌شوند تا کاربر دوباره وارد شود
-    if (upstream.status === 401 && authSource === "teacher") {
-      response.cookies.set(TEACHER_ACCESS_COOKIE, "", {
-        ...teacherAccessCookieOptions,
-        maxAge: 0,
-      });
-      response.cookies.set(TEACHER_REFRESH_COOKIE, "", {
-        ...teacherRefreshCookieOptions,
-        maxAge: 0,
-      });
-      response.cookies.set(TEACHER_REFRESH_SIG_COOKIE, "", {
-        ...teacherRefreshCookieOptions,
-        maxAge: 0,
-      });
+    if (upstream.status === 401 && activeKind) {
+      const names = AUTH_COOKIES[activeKind];
+
+      for (const name of [names.access, names.refresh, names.sig]) {
+        response.cookies.set(name, "", {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 0,
+        });
+      }
     }
 
     return response;
@@ -144,9 +130,13 @@ async function proxy(
   try {
     let upstream = await performRequest(targetUrl, method, headers, body);
 
-    // نگه‌داشتن پشتیبان: اگر با وجود توکن معتبر ۴۰۱ گرفتیم، یک بار تازه‌سازی می‌کنیم
-    if (upstream.status === 401 && authSource === "teacher" && !rotatedSession) {
-      const retry = await refreshTeacherAccessToken(refreshToken, refreshSig);
+    // اگر با وجود توکن معتبر ۴۰۱ گرفتیم، یک بار تازه‌سازی و تکرار می‌کنیم
+    if (upstream.status === 401 && activeKind && !rotatedSession) {
+      const names = AUTH_COOKIES[activeKind];
+      const retry = await refreshAccessToken(
+        request.cookies.get(names.refresh)?.value,
+        request.cookies.get(names.sig)?.value
+      );
 
       if (retry) {
         rotatedSession = retry;

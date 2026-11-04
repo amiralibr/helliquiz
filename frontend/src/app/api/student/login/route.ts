@@ -1,42 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  STUDENT_COOKIE_MAX_AGE,
-  STUDENT_COOKIE_NAME,
-  extractErrorMessage,
-  requestStudentApi,
-} from "@/lib/student-api";
+  AUTH_COOKIES,
+  accessCookieOptions,
+  refreshCookieOptions,
+  signIn,
+  userCookieOptions,
+} from "@/lib/auth";
 
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: STUDENT_COOKIE_MAX_AGE,
-  secure: process.env.NODE_ENV === "production",
-};
+const STUDENT = AUTH_COOKIES.student;
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
 
-  const { ok, status, data } = await requestStudentApi("login", {
-    method: "POST",
-    body: JSON.stringify({
-      nationalCode: body?.nationalCode,
-      password: body?.password,
-    }),
-  });
+  const nationalCode =
+    typeof body?.nationalCode === "string" ? body.nationalCode.trim() : "";
+  const password = typeof body?.password === "string" ? body.password : "";
 
-  if (!ok || !data?.token) {
+  if (!/^\d{10}$/.test(nationalCode) || password.length === 0) {
     return NextResponse.json(
-      {
-        error: {
-          message: extractErrorMessage(data, "کد ملی یا رمز عبور اشتباه است."),
-        },
-      },
-      { status: status === 200 ? 401 : status }
+      { error: { message: "کد ملی (۱۰ رقم) و رمز عبور را کامل وارد کنید." } },
+      { status: 400 }
     );
   }
 
-  const response = NextResponse.json({ student: data.student });
-  response.cookies.set(STUDENT_COOKIE_NAME, data.token, cookieOptions);
+  const result = await signIn(nationalCode, password);
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: { message: "کد ملی یا رمز عبور اشتباه است." } },
+      { status: result.status === 200 ? 401 : result.status }
+    );
+  }
+
+  const { user, token, refresh, sig } = result.tokens;
+
+  // حساب دبیر نباید از فرم دانش‌آموزی وارد شود
+  if (!user.nationalCode) {
+    return NextResponse.json(
+      {
+        error: {
+          message: "این حساب مربوط به دبیر است؛ از پنل دبیر وارد شوید.",
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  const profile = {
+    documentId: user.documentId,
+    fullName: user.fullName || user.username,
+    studentClass: user.studentClass || "-",
+    nationalCode: user.nationalCode,
+  };
+
+  const response = NextResponse.json({ student: profile });
+
+  response.cookies.set(STUDENT.access, token, accessCookieOptions);
+  response.cookies.set(STUDENT.user, JSON.stringify(profile), userCookieOptions);
+
+  if (refresh && sig) {
+    response.cookies.set(STUDENT.refresh, refresh, refreshCookieOptions);
+    response.cookies.set(STUDENT.sig, sig, refreshCookieOptions);
+  }
+
   return response;
 }

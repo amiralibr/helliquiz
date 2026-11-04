@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import Link from "next/link";
 import { getQuizzes } from "@/lib/api";
 import { getStudentSession } from "@/lib/student-session";
@@ -18,6 +19,9 @@ import {
 
 // کامپوننت داخلی برای واکشی و نمایش لیست آزمون‌ها
 async function QuizList() {
+  // لیست آزمون‌ها در هر درخواست تازه خوانده می‌شود (نه در پیش‌رندر)
+  await connection();
+
   const [quizzes, session] = await Promise.all([
     getQuizzes().catch((err) => {
       console.error("Failed to load quizzes:", err);
