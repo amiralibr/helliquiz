@@ -529,9 +529,11 @@ export interface ApiSubmissionSubmission extends Struct.CollectionTypeSchema {
       'api::submission.submission'
     > &
       Schema.Attribute.Private;
+    nationalCode: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     quiz: Schema.Attribute.Relation<'manyToOne', 'api::quiz.quiz'>;
     score: Schema.Attribute.Integer;
+    studentClass: Schema.Attribute.String;
     studentName: Schema.Attribute.String;
     timeSpentSeconds: Schema.Attribute.Integer;
     updatedAt: Schema.Attribute.DateTime;

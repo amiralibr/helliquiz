@@ -1,7 +1,11 @@
 import { Quiz, SubmissionPayload, SubmissionResponse } from "@/types/quiz";
 
+// استراپی فقط روی IPv4 گوش می‌دهد؛ از 127.0.0.1 استفاده می‌کنیم تا
+// رزولوشن IPv6-first برای localhost باعث Failed to fetch نشود.
 const STRAPI_BASE_URL =
-  process.env.NEXT_PUBLIC_STRAPI_API_URL || "http://localhost:1337";
+  process.env.NEXT_PUBLIC_STRAPI_API_URL ||
+  process.env.NEXT_PUBLIC_STRAPI_URL ||
+  "http://127.0.0.1:1337";
 
 export async function getQuizzes(): Promise<Quiz[]> {
   const res = await fetch(`${STRAPI_BASE_URL}/api/quizzes?populate=*`, {
@@ -32,25 +36,36 @@ export async function getQuizById(id: string | number): Promise<Quiz | null> {
   return json.data || null;
 }
 
-export async function submitQuizAnswers(
-  quizId: string | number,
-  answers: Record<string | number, string>
-): Promise<SubmissionResponse> {
-  const res = await fetch(`${STRAPI_BASE_URL}/api/quizzes/${quizId}/submit`, {
-    method: "POST",
+// ساختار کامل پی‌لود ارسالی دانش‌آموز
+export interface SubmitQuizPayload {
+  studentName: string;
+  studentClass: string;
+  nationalCode: string;
+  timeSpentSeconds: number;
+  answers: Record<string | number, string | number>;
+}
+
+export async function submitQuizAnswers(quizId: string | number, payload: {
+  studentName: string;
+  studentClass: string;
+  nationalCode: string;
+  timeSpentSeconds: number;
+  answers: Record<string | number, number | string>;
+}) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL || 'http://127.0.0.1:1337'}/api/quizzes/${quizId}/submit`, {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json; charset=utf-8', // جلوگیری از علامت سؤال شدن فونت فارسی
+      'Accept': 'application/json',
     },
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(
-      errorData.error?.message || "خطا در ثبت و تصحیح آزمون در سرور"
-    );
+    throw new Error(errorData?.error?.message || 'خطا در ثبت نهایی آزمون');
   }
 
-  return res.json();
+  return await res.json();
 }
 

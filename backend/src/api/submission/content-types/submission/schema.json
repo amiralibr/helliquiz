@@ -28,6 +28,12 @@
       "relation": "manyToOne",
       "target": "api::quiz.quiz",
       "inversedBy": "submissions"
+    },
+    "studentClass": {
+      "type": "string"
+    },
+    "nationalCode": {
+      "type": "string"
     }
   }
 }

@@ -5,7 +5,7 @@ import { Quiz, SubmissionResponse } from "@/types/quiz";
 import { submitQuizAnswers } from "@/lib/api";
 import MathRenderer from "@/components/MathRenderer";
 import confetti from "canvas-confetti";
-import { Clock, CheckCircle2, XCircle, AlertTriangle, Trophy, RotateCcw } from "lucide-react";
+import { Clock, CheckCircle2, XCircle, AlertTriangle, Trophy, RotateCcw, UserCheck } from "lucide-react";
 import Link from "next/link";
 
 interface QuizRunnerProps {
@@ -13,7 +13,15 @@ interface QuizRunnerProps {
 }
 
 export default function QuizRunner({ quiz }: QuizRunnerProps) {
+  // ۱. فرم اطلاعات هویتی دانش‌آموز
+  const [studentName, setStudentName] = useState("");
+  const [studentClass, setStudentClass] = useState("");
+  const [nationalCode, setNationalCode] = useState("");
+  const [isStarted, setIsStarted] = useState(false);
+
+  // ۲. مدیریت آزمون و پاسخ‌ها
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string | number, string>>({});
+  const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<number>((quiz.durationMinutes || 15) * 60);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [result, setResult] = useState<SubmissionResponse["result"] | null>(null);
@@ -21,8 +29,9 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
 
   const questions = quiz.questions || [];
 
+  // تایمر آزمون
   useEffect(() => {
-    if (result || timeLeft <= 0) return;
+    if (!isStarted || result || timeLeft <= 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -33,10 +42,11 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
         }
         return prev - 1;
       });
+      setSecondsElapsed((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, result]);
+  }, [isStarted, timeLeft, result]);
 
   const handleSelectOption = (questionKey: string | number, optionKey: string) => {
     if (result) return;
@@ -53,9 +63,15 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
 
     try {
       const quizIdentifier = quiz.documentId || quiz.id;
-      const res = await submitQuizAnswers(quizIdentifier, selectedAnswers);
+      // ارسال اطلاعات هویتی، زمان و پاسخ‌ها به بک‌اند
+      const res = await submitQuizAnswers(quizIdentifier, {
+        studentName,
+        studentClass,
+        nationalCode,
+        timeSpentSeconds: secondsElapsed,
+        answers: selectedAnswers,
+      } as any);
       
-      console.log("📥 SUBMIT RESULT RESPONSE:", res);
       setResult(res.result);
 
       if (res.result.percentage >= 50) {
@@ -102,22 +118,89 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
     );
   };
 
+  // گام اول: فرم دریافت اطلاعات شناسنامه‌ای دانش‌آموز پیش از شروع آزمون
+  if (!isStarted) {
+    const isFormValid =
+      studentName.trim().length >= 3 &&
+      studentClass.trim().length >= 1 &&
+      /^[0-9]{10}$/.test(nationalCode.trim());
+
+    return (
+      <div className="card animate-fade-up max-w-md mx-auto my-12 p-8 text-right" dir="rtl">
+        <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center mb-4 text-white font-black text-xl shadow-lg shadow-indigo-500/30">
+          HQ
+        </div>
+        <h2 className="text-2xl font-black text-white mb-2">
+          ورود به آزمون {quiz.title}
+        </h2>
+        <p className="text-xs text-muted mb-6">
+          جهت ثبت کارنامه برای دبیر، لطفاً مشخصات فردی خود را با دقت وارد کنید.
+        </p>
+
+        <div className="space-y-4 text-sm">
+          <div>
+            <label className="label">نام و نام خانوادگی</label>
+            <input
+              type="text"
+              placeholder="مثال: امیرعلی برخورداری"
+              value={studentName}
+              onChange={(e) => setStudentName(e.target.value)}
+              className="input"
+            />
+          </div>
+
+          <div>
+            <label className="label">کلاس / پایه</label>
+            <input
+              type="text"
+              placeholder="مثال: نهم ۱ - علامه حلی"
+              value={studentClass}
+              onChange={(e) => setStudentClass(e.target.value)}
+              className="input"
+            />
+          </div>
+
+          <div>
+            <label className="label">کد ملی (۱۰ رقم بدون خط تیره)</label>
+            <input
+              type="text"
+              maxLength={10}
+              placeholder="0012345678"
+              value={nationalCode}
+              onChange={(e) => setNationalCode(e.target.value)}
+              className="input tabular-nums-fa"
+            />
+          </div>
+
+          <button
+            disabled={!isFormValid}
+            onClick={() => setIsStarted(true)}
+            className="btn btn-primary w-full mt-4"
+          >
+            تایید و شروع آزمون
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // گام دوم: محیط آزمون و نمایش نتیجه پس از ثبت
   return (
-    <div className="space-y-8 pb-16">
-      <div className="sticky top-20 z-10 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/90">
+    <div className="space-y-8 pb-16" dir="rtl">
+      <div className="glass sticky top-20 z-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{quiz.title}</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            تعداد کل سوالات: {questions.length} سوال
+          <h1 className="text-xl font-bold text-white">{quiz.title}</h1>
+          <p className="text-xs text-muted">
+            دانش‌آموز: <span className="font-semibold text-foreground">{studentName}</span> ({studentClass})
           </p>
         </div>
 
         {!result && (
           <div
-            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 font-mono text-sm font-bold ${
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-bold tabular-nums-fa ${
               timeLeft < 180
-                ? "bg-red-100 text-red-700 animate-pulse dark:bg-red-950/50 dark:text-red-400"
-                : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                ? "timer-danger"
+                : "text-indigo-300 bg-indigo-500/10 border border-indigo-500/30"
             }`}
           >
             <Clock className="h-4 w-4" />
@@ -127,28 +210,27 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
       </div>
 
       {result && (
-        <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6 text-zinc-900 dark:border-blue-900/50 dark:from-zinc-900 dark:to-zinc-900/80 dark:text-zinc-100">
+        <div className="card animate-fade-up p-6 border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 to-violet-950/20">
           <div className="flex flex-col items-center text-center sm:flex-row sm:justify-between sm:text-right">
             <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+              <div className="inline-flex items-center gap-1.5 text-indigo-300">
                 <Trophy className="h-5 w-5" />
-                <span className="font-semibold text-sm">نتیجه آزمون شما</span>
+                <span className="font-semibold text-sm">نتیجه ثبت‌شده برای دبیر</span>
               </div>
-              <h2 className="text-2xl font-black">درصد کسب‌شده: {result.percentage}٪</h2>
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                نمره کسب‌شده: {(result as any).score} از {(result as any).totalScore || result.totalQuestions}
-                  {((result as any).correctCount !== undefined) && (
-                   <span className="mr-2 text-xs opacity-80">
-                      ({(result as any).correctCount} پاسخ درست از {result.totalQuestions} سؤال)
-                   </span>
-                  )}
+              <h2 className="text-2xl font-black text-white">
+                درصد کسب‌شده: <span className="text-gradient tabular-nums-fa">{result.percentage}٪</span>
+              </h2>
+              <p className="text-sm text-muted">
+                نمره کسب‌شده: <span className="font-bold text-foreground tabular-nums-fa">{result.score}</span> از{" "}
+                <span className="tabular-nums-fa">{result.totalScore || result.totalQuestions}</span>
+                {result.correctCount !== undefined && (
+                  <span className="mr-2 text-xs opacity-80">
+                    ({result.correctCount} پاسخ درست از {result.totalQuestions} سؤال)
+                  </span>
+                )}
               </p>
-
             </div>
-            <Link
-              href="/"
-              className="mt-4 sm:mt-0 inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-            >
+            <Link href="/" className="btn btn-primary mt-4 sm:mt-0">
               <RotateCcw className="h-4 w-4" />
               بازگشت به لیست آزمون‌ها
             </Link>
@@ -157,7 +239,7 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <div className="alert alert-error">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -172,8 +254,7 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
 
           const isQuestionCorrect = Boolean(
             detail?.isCorrect === true ||
-            String(detail?.isCorrect) === "true" ||
-            (detail?.score !== undefined && Number(detail.score) > 0)
+            String(detail?.isCorrect) === "true"
           );
 
           const optionsList = Array.isArray(question.options)
@@ -183,19 +264,19 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
           return (
             <div
               key={qKey || index}
-              className={`rounded-xl border p-6 transition-all ${
+              className={`card animate-fade-up p-6 ${
                 result
                   ? isQuestionCorrect
-                    ? "border-emerald-200 bg-emerald-50/15 dark:border-emerald-900/40 dark:bg-emerald-950/10"
-                    : "border-rose-200 bg-rose-50/15 dark:border-rose-900/40 dark:bg-rose-950/10"
-                  : "border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50"
+                    ? "border-emerald-500/40"
+                    : "border-rose-500/40"
+                  : ""
               }`}
             >
               <div className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-xs font-bold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
                   {index + 1}
                 </span>
-                <div className="text-base font-semibold leading-relaxed text-zinc-900 dark:text-zinc-100">
+                <div className="text-base font-semibold leading-relaxed text-foreground">
                   <MathRenderer content={questionText} />
                 </div>
               </div>
@@ -203,35 +284,21 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {optionsList.map(({ key, label }, optIdx) => {
                   const isSelected = String(selectedOption) === String(key);
-
-                  const serverCorrectKey = detail?.correctAnswer ?? detail?.correctOption ?? detail?.answer;
+                  const serverCorrectKey = detail?.correctAnswer;
 
                   const isThisCorrectOption =
-                    (serverCorrectKey !== undefined && String(serverCorrectKey) === String(key)) ||
-                    (serverCorrectKey !== undefined && Number(serverCorrectKey) === optIdx);
+                    serverCorrectKey !== undefined &&
+                    (String(serverCorrectKey) === String(key) || Number(serverCorrectKey) === optIdx);
 
-                  let optionStyle =
-                    "border-zinc-200 bg-zinc-50/60 hover:border-zinc-300 hover:bg-zinc-100/60 dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:border-zinc-700";
-                  let badgeStyle =
-                    "border-zinc-300 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
-
+                  let optionClass = "option-btn";
                   if (result) {
                     if (isThisCorrectOption) {
-                      optionStyle =
-                        "border-emerald-500 bg-emerald-50 text-emerald-950 font-semibold ring-2 ring-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-500";
-                      badgeStyle =
-                        "border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-500";
+                      optionClass += " option-correct";
                     } else if (isSelected && !isQuestionCorrect) {
-                      optionStyle =
-                        "border-rose-500 bg-rose-50 text-rose-900 line-through dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-600";
-                      badgeStyle =
-                        "border-rose-500 bg-rose-600 text-white dark:border-rose-500 dark:bg-rose-500";
+                      optionClass += " option-wrong line-through opacity-80";
                     }
                   } else if (isSelected) {
-                    optionStyle =
-                      "border-blue-600 bg-blue-50 text-blue-950 font-medium ring-2 ring-blue-600/25 dark:border-blue-500 dark:bg-blue-950/40 dark:text-blue-100";
-                    badgeStyle =
-                      "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500";
+                    optionClass += " option-selected";
                   }
 
                   return (
@@ -240,13 +307,9 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
                       type="button"
                       disabled={Boolean(result) || isSubmitting}
                       onClick={() => handleSelectOption(qKey, key)}
-                      className={`flex items-center gap-3 rounded-lg border p-3.5 text-right text-sm transition-all ${optionStyle}`}
+                      className={optionClass}
                     >
-                      <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition-colors ${badgeStyle}`}
-                      >
-                        {optIdx + 1}
-                      </span>
+                      <span className="option-key">{optIdx + 1}</span>
                       <span className="flex-1">
                         <MathRenderer content={label} />
                       </span>
@@ -258,12 +321,12 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
               {result && (
                 <div className="mt-4 flex items-center gap-2 text-xs font-medium">
                   {isQuestionCorrect ? (
-                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1 text-emerald-400">
                       <CheckCircle2 className="h-4 w-4" />
                       پاسخ شما صحیح است
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                    <span className="flex items-center gap-1 text-rose-400">
                       <XCircle className="h-4 w-4" />
                       پاسخ اشتباه بود
                     </span>
@@ -281,9 +344,9 @@ export default function QuizRunner({ quiz }: QuizRunnerProps) {
             type="button"
             disabled={isSubmitting}
             onClick={handleSubmit}
-            className="rounded-xl bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:opacity-50"
+            className="btn btn-primary px-8 py-3"
           >
-            {isSubmitting ? "در حال تصحیح آزمون..." : "ثبت و پایان آزمون"}
+            {isSubmitting ? "در حال تصحیح و ثبت کارنامه..." : "ثبت و پایان آزمون"}
           </button>
         </div>
       )}
