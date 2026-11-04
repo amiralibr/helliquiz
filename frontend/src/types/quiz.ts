@@ -1,47 +1,48 @@
 export interface Quiz {
-  id: number;
-  documentId: string;
+  /** شناسه سند استراپی (documentId) */
+  id: string;
+  documentId?: string;
   title: string;
-  description: string;
+  description?: string;
   durationMinutes: number;
-  slug?: string;
+  slug?: string | null;
+  questionCount?: number;
   questions?: Question[];
 }
 
 export interface Question {
-  id: number | string;
+  id: string;
   documentId?: string;
-  questionText?: string;
-  prompt?: string;
-  options: string[] | Record<string, string>;
+  order?: number;
+  questionText: string;
+  options: string[];
   score?: number;
 }
 
 export interface QuestionEvaluation {
-  questionId?: number | string;
-  questionText?: string;
-  studentAnswer?: any;
-  correctAnswer?: any;
+  questionId?: string;
+  questionText: string;
+  options?: string[];
+  selectedOption: number | null;
+  correctAnswer: number | null;
   isCorrect: boolean;
   weight?: number;
 }
 
-export interface SubmissionResponse {
-  message: string;
-  result: {
-    score: number;
-    totalScore?: number;
-    correctCount?: number;
-    totalQuestions: number;
-    percentage: number;
-    details: Array<QuestionEvaluation> | Record<string | number, QuestionEvaluation>;
-  };
+export interface QuizResult {
+  score: number;
+  totalScore: number;
+  correctCount: number;
+  totalQuestions: number;
+  percentage: number;
+  details: QuestionEvaluation[];
+  alreadySubmitted?: boolean;
 }
 
-export interface SubmissionPayload {
+export interface SubmitQuizPayload {
   studentName: string;
   studentClass: string;
   nationalCode: string;
   timeSpentSeconds: number;
-  answers: Record<string | number, string | number>;
+  answers: Record<string, number | string>;
 }

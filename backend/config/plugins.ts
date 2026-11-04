@@ -26,9 +26,14 @@ const deniedTypes = [
 const config = ({ env }: Core.Config.Shared.ConfigParams): Core.Config.Plugin => ({
   'users-permissions': {
     config: {
+      jwtSecret: env('JWT_SECRET'),
       jwtManagement: 'refresh',
       sessions: {
         httpOnly: true,
+      },
+      // ورود با نام کاربری یا ایمیل هر دو ممکن است
+      register: {
+        allowedFields: ['username', 'email'],
       },
     },
   },

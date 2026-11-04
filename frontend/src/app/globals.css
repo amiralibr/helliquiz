@@ -545,6 +545,45 @@ input[type="checkbox"] {
   color: #ffffff;
 }
 
+
+/* ---------- حلقه امتیاز (Score Ring) ---------- */
+
+.score-ring {
+  --ring-value: 0;
+  --ring-color: var(--color-primary);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: conic-gradient(
+    var(--ring-color) calc(var(--ring-value) * 1%),
+    rgb(148 163 184 / 0.16) 0
+  );
+  transition: background 400ms var(--ease-out-soft);
+}
+
+.score-ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+.score-ring > * {
+  position: relative;
+  z-index: 1;
+}
+
+.score-ring span {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-foreground);
+}
+
 /* ---------- Animations ---------- */
 
 @keyframes fade-up {

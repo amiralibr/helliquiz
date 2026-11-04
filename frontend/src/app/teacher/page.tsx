@@ -57,12 +57,12 @@ interface SubmissionItem {
 }
 
 // ساختار هر سوال داخل آزمون
-// correctAnswer در UI صفر-بیس است؛ هنگام ذخیره در استراپی به یک-بیس تبدیل می‌شود
+// correctOption همان ایندکس صفر-بیس گزینه صحیح است (همان چیزی که در استراپی ذخیره می‌شود)
 interface QuestionItem {
   documentId?: string;
   questionText: string;
   options: string[];
-  correctAnswer: number;
+  correctOption: number;
   score?: number;
 }
 
@@ -83,16 +83,24 @@ interface TeacherUser {
   email?: string;
 }
 
+// پاسخ صحیح: منبع اصلی correctOption (صفر-بیس) است و داده‌های قدیمی
+// که فقط correctAnswer (یک-بیس) دارند هم پشتیبانی می‌شوند.
+const resolveCorrectOption = (question: Record<string, unknown>): number => {
+  const modern = Number(question?.correctOption);
+  if (Number.isInteger(modern) && modern >= 0) return modern;
+
+  const legacy = Number(question?.correctAnswer);
+  if (!Number.isFinite(legacy)) return 0;
+  return legacy >= 1 ? legacy - 1 : legacy;
+};
+
 // پیام خطای استاندارد از یک مقدار catch شده
 const getErrorMessage = (err: unknown, fallback = "خطای نامشخص") =>
   err instanceof Error ? err.message : fallback;
 
-// استراپی فقط روی IPv4 (0.0.0.0:1337) گوش می‌دهد؛ «localhost» در این سیستم
-// اول به ::1 رزولو می‌شود و باعث TypeError: Failed to fetch در مرورگر می‌شود.
-const STRAPI_BASE_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ||
-  process.env.NEXT_PUBLIC_STRAPI_API_URL ||
-  "http://127.0.0.1:1337";
+// همه‌ی درخواست‌های مرورگر از مسیر نسبی /api/strapi به بک‌اند پروکسی می‌شوند؛
+// بنابراین نه به localhost وابسته‌ایم و نه به CORS.
+const STRAPI_BASE_URL = "/api/strapi";
 
 const TEACHER_TOKEN_KEY = "helliquiz_teacher_token";
 const TEACHER_USER_KEY = "helliquiz_teacher_user";
@@ -154,7 +162,7 @@ export default function TeacherDashboard() {
     {
       questionText: "",
       options: ["", "", "", ""],
-      correctAnswer: 0,
+      correctOption: 0,
       score: 10,
     },
   ]);
@@ -189,7 +197,7 @@ export default function TeacherDashboard() {
   const [questionDraft, setQuestionDraft] = useState<QuestionItem>({
     questionText: "",
     options: ["", "", "", ""],
-    correctAnswer: 0,
+    correctOption: 0,
     score: 10,
   });
 
@@ -309,8 +317,8 @@ export default function TeacherDashboard() {
             data: {
               questionText: q.questionText,
               options: q.options,
-              // استراپی پاسخ صحیح را یک-بیس ذخیره می‌کند (کنترلر submit همین فرض را دارد)
-              correctAnswer: q.correctAnswer + 1,
+              // پاسخ صحیح به‌صورت ایندکس صفر-بیس ذخیره می‌شود
+              correctOption: q.correctOption,
               score: Number(q.score) > 0 ? Number(q.score) : 1,
               quiz: quizDocumentId,
             },
@@ -430,16 +438,12 @@ export default function TeacherDashboard() {
           description: data.description || "",
           durationMinutes: data.durationMinutes || 15,
           slug: data.slug || "",
-          // correctAnswer در استراپی یک-بیس ذخیره می‌شود؛ برای UI به صفر-بیس تبدیل می‌کنیم
           questions: Array.isArray(data.questions)
             ? data.questions.map((q: any) => ({
                 documentId: q.documentId || q.id,
                 questionText: q.questionText || "",
                 options: Array.isArray(q.options) ? q.options : [],
-                correctAnswer:
-                  Number(q.correctAnswer) >= 1
-                    ? Number(q.correctAnswer) - 1
-                    : 0,
+                correctOption: resolveCorrectOption(q),
                 score: q.score ?? 10,
               }))
             : [],
@@ -452,9 +456,7 @@ export default function TeacherDashboard() {
       console.error(err);
       if (err instanceof TypeError) {
         setError(
-          "ارتباط با سرور استراپی برقرار نشد (خطای شبکه). بررسی کنید بک‌اند روی " +
-            STRAPI_BASE_URL +
-            " در حال اجرا باشد و فیلترشکن/افزونه‌های مرورگر آن را مسدود نکرده باشند."
+          "ارتباط با سرور آزمون برقرار نشد (خطای شبکه). بررسی کنید سرویس بک‌اند در حال اجرا باشد."
         );
       } else {
         setError(getErrorMessage(err, "خطا در واکشی داده‌ها از استراپی"));
@@ -682,7 +684,7 @@ export default function TeacherDashboard() {
     setQuestionDraft({
       questionText: question.questionText || "",
       options: question.options ? [...question.options] : ["", "", "", ""],
-      correctAnswer: question.correctAnswer ?? 0,
+      correctOption: question.correctOption ?? 0,
       score: question.score ?? 10,
     });
   };
@@ -709,7 +711,7 @@ export default function TeacherDashboard() {
             data: {
               questionText: questionDraft.questionText,
               options: questionDraft.options,
-              correctAnswer: questionDraft.correctAnswer + 1, // یک-بیس در استراپی
+              correctOption: questionDraft.correctOption,
               score: Number(questionDraft.score) > 0 ? Number(questionDraft.score) : 1,
             },
           }),
@@ -740,7 +742,7 @@ export default function TeacherDashboard() {
       {
         questionText: "",
         options: ["", "", "", ""],
-        correctAnswer: 0,
+        correctOption: 0,
         score: 10,
       },
     ]);
@@ -806,7 +808,7 @@ export default function TeacherDashboard() {
           {
             questionText: "",
             options: ["", "", "", ""],
-            correctAnswer: 0,
+            correctOption: 0,
             score: 10,
           },
         ]);
@@ -1651,10 +1653,10 @@ export default function TeacherDashboard() {
                               <input
                                 type="radio"
                                 name={`correct-${qIndex}`}
-                                checked={q.correctAnswer === optIdx}
+                                checked={q.correctOption === optIdx}
                                 onChange={() => {
                                   const updated = [...questions];
-                                  updated[qIndex].correctAnswer = optIdx;
+                                  updated[qIndex].correctOption = optIdx;
                                   setQuestions(updated);
                                 }}
                                 title="انتخاب به عنوان پاسخ صحیح"
@@ -1919,11 +1921,11 @@ export default function TeacherDashboard() {
                       <input
                         type="radio"
                         name="edit-question-correct"
-                        checked={questionDraft.correctAnswer === oIdx}
+                        checked={questionDraft.correctOption === oIdx}
                         onChange={() =>
                           setQuestionDraft({
                             ...questionDraft,
-                            correctAnswer: oIdx,
+                            correctOption: oIdx,
                           })
                         }
                         title="گزینه صحیح"

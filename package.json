@@ -1,0 +1,14 @@
+{
+  "name": "helliquiz",
+  "version": "1.0.0",
+  "private": true,
+  "description": "حلی‌کوئیز — سامانه آزمون آنلاین دبیرستان علامه حلی ۵ (Strapi + Next.js)",
+  "scripts": {
+    "setup": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run develop",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
+  }
+}

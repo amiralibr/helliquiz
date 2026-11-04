@@ -4,7 +4,8 @@
   "info": {
     "singularName": "question",
     "pluralName": "questions",
-    "displayName": "Question"
+    "displayName": "Question",
+    "description": "سؤال چهارگزینه‌ای؛ correctOption ایندکس صفر-بیس گزینه صحیح است"
   },
   "options": {
     "draftAndPublish": true
@@ -12,16 +13,27 @@
   "pluginOptions": {},
   "attributes": {
     "questionText": {
-      "type": "text"
+      "type": "text",
+      "required": true,
+      "maxLength": 2000
     },
     "options": {
-      "type": "json"
+      "type": "json",
+      "required": true
+    },
+    "correctOption": {
+      "type": "integer",
+      "min": 0,
+      "description": "ایندکس صفر-بیس گزینه صحیح (0 = گزینه اول)"
     },
     "correctAnswer": {
-      "type": "integer"
+      "type": "integer",
+      "description": "صرفاً برای داده‌های قدیمی (یک-بیس). مقدار معتبر در correctOption نگه‌داری می‌شود."
     },
     "score": {
-      "type": "integer"
+      "type": "integer",
+      "default": 1,
+      "min": 0
     },
     "quiz": {
       "type": "relation",

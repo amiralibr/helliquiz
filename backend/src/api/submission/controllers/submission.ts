@@ -1,9 +1,23 @@
 import { factories } from '@strapi/strapi';
 
+/**
+ * فقط دبیران احراز هویت‌شده به کارنامه‌ها دسترسی دارند.
+ * دانش‌آموزان کارنامه‌ی خودشان را از مسیر /api/student-auth/me می‌گیرند.
+ */
+const requireStaff = (ctx: any) => {
+  if (!ctx.state?.user) {
+    ctx.unauthorized('برای دسترسی به کارنامه‌ها باید با حساب دبیر وارد شوید.');
+    return false;
+  }
+  return true;
+};
+
 export default factories.createCoreController(
   'api::submission.submission',
   () => ({
     async find(ctx) {
+      if (!requireStaff(ctx)) return;
+
       const query = (ctx.query || {}) as Record<string, any>;
 
       const userPagination =
@@ -12,7 +26,6 @@ export default factories.createCoreController(
           : {};
 
       // در استراپی ۵ مقدار 'draft' هم Draft و هم Published را بازمی‌گرداند
-      // مگر اینکه فرانت‌اند صراحتاً فقط منتشرشده‌ها را خواسته باشد
       const status = query.status || 'draft';
 
       ctx.query = {
@@ -20,7 +33,7 @@ export default factories.createCoreController(
         status,
         populate: {
           quiz: {
-            fields: ['id', 'documentId', 'title', 'durationMinutes'],
+            fields: ['title', 'durationMinutes'],
           },
         },
         sort: query.sort || ['createdAt:desc'],
@@ -30,12 +43,20 @@ export default factories.createCoreController(
         },
       };
 
-      return await super.find(ctx);
+      const response = await super.find(ctx);
+
+      // کلید داخلی ضدتکرار نباید به کلاینت برود
+      if (Array.isArray(response?.data)) {
+        response.data = response.data.map(({ submissionKey, ...rest }: any) => rest);
+      }
+
+      return response;
     },
 
     async findOne(ctx) {
-      const query = (ctx.query || {}) as Record<string, any>;
+      if (!requireStaff(ctx)) return;
 
+      const query = (ctx.query || {}) as Record<string, any>;
       const status = query.status || 'draft';
 
       ctx.query = {
@@ -43,12 +64,34 @@ export default factories.createCoreController(
         status,
         populate: {
           quiz: {
-            fields: ['id', 'documentId', 'title', 'durationMinutes'],
+            fields: ['title', 'durationMinutes'],
           },
         },
       };
 
-      return await super.findOne(ctx);
+      const response = await super.findOne(ctx);
+
+      if (response?.data) {
+        const { submissionKey, ...rest } = response.data as any;
+        return { ...response, data: rest };
+      }
+
+      return response;
     },
-  }),
+
+    async delete(ctx) {
+      if (!requireStaff(ctx)) return;
+      return super.delete(ctx);
+    },
+
+    async update(ctx) {
+      if (!requireStaff(ctx)) return;
+      return super.update(ctx);
+    },
+
+    async create(ctx) {
+      if (!requireStaff(ctx)) return;
+      return super.create(ctx);
+    },
+  })
 );
