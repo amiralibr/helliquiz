@@ -7,7 +7,7 @@
     "displayName": "Submission"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {

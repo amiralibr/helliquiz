@@ -7,112 +7,44 @@
  *   - Authenticated → دبیران
  */
 
-const USER_UID = 'plugin::users-permissions.user';
-const STUDENT_ROLE_TYPE = 'student';
-const NATIONAL_CODE_PATTERN = /^\d{10}$/;
-const MIN_PASSWORD_LENGTH = 8;
-const STUDENT_EMAIL_DOMAIN = 'student.helliquiz.local';
+import { USER_UID, createStudentAccount } from '../../../utils/student-account';
+
 const MAX_ATTEMPTS_PER_SUBMISSION = 500;
-
-const isValidNationalCode = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  NATIONAL_CODE_PATTERN.test(value.trim()) &&
-  !/^(\d)\1{9}$/.test(value.trim());
-
-const clean = (value: unknown, maxLength: number): string =>
-  typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 
 const fail = (ctx: any, status: number, message: string) =>
   ctx.throw(status, message, { code: 'STUDENT_AUTH_ERROR' });
-
-/** نقش دانش‌آموز را برمی‌گرداند و در صورت نبودن می‌سازد */
-const getStudentRole = async (strapi: any) => {
-  const roles = strapi.plugin('users-permissions').service('role') as any;
-
-  let role = await strapi.db
-    .query('plugin::users-permissions.role')
-    .findOne({ where: { type: STUDENT_ROLE_TYPE } });
-
-  if (!role) {
-    role = await roles.create({
-      name: 'Student',
-      description: 'دانش‌آموز — فقط کارنامه‌ی خودش را می‌بیند',
-      type: STUDENT_ROLE_TYPE,
-    });
-  }
-
-  return role;
-};
 
 export default {
   /** POST /api/student-auth/register — ساخت حساب دانش‌آموز */
   async register(ctx: any) {
     const body = (ctx.request.body || {}) as Record<string, unknown>;
 
-    const fullName = clean(body.fullName, 80);
-    const studentClass = clean(body.studentClass, 40);
-    const nationalCode = typeof body.nationalCode === 'string' ? body.nationalCode.trim() : '';
-    const password = typeof body.password === 'string' ? body.password : '';
-
-    if (fullName.length < 3) {
-      return fail(ctx, 400, 'نام و نام خانوادگی باید دست‌کم ۳ نویسه باشد.');
-    }
-    if (studentClass.length < 1) {
-      return fail(ctx, 400, 'کلاس / پایه را وارد کنید.');
-    }
-    if (!isValidNationalCode(nationalCode)) {
-      return fail(ctx, 400, 'کد ملی باید دقیقاً ۱۰ رقم و معتبر باشد.');
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      return fail(ctx, 400, `رمز عبور باید دست‌کم ${MIN_PASSWORD_LENGTH} نویسه باشد.`);
-    }
-
-    const existing = await strapi.db.query(USER_UID).findOne({
-      where: {
-        $or: [
-          { nationalCode },
-          { username: nationalCode },
-          { email: `${nationalCode}@${STUDENT_EMAIL_DOMAIN}` },
-        ],
-      },
-    });
-
-    if (existing) {
-      return fail(ctx, 409, 'این کد ملی قبلاً ثبت‌نام کرده است. از فرم ورود استفاده کنید.');
-    }
-
-    const role = await getStudentRole(strapi);
-
-    let user;
     try {
-      user = await strapi.plugin('users-permissions').service('user').add({
-        username: nationalCode,
-        email: `${nationalCode}@${STUDENT_EMAIL_DOMAIN}`,
-        password,
-        provider: 'local',
-        confirmed: true,
-        blocked: false,
-        role: role.id,
-        fullName,
-        studentClass,
-        nationalCode,
+      const student = await createStudentAccount(strapi, {
+        fullName: body.fullName,
+        studentClass: body.studentClass,
+        nationalCode: body.nationalCode,
+        password: body.password,
+      });
+
+      return ctx.send({
+        user: {
+          documentId: student.documentId,
+          fullName: student.fullName,
+          studentClass: student.studentClass,
+          nationalCode: student.nationalCode,
+        },
       });
     } catch (error: any) {
-      if (String(error?.message || '').toLowerCase().includes('unique')) {
-        return fail(ctx, 409, 'این کد ملی قبلاً ثبت‌نام کرده است.');
-      }
-      strapi.log.error('خطا در ثبت‌نام دانش‌آموز:', error);
-      return fail(ctx, 500, 'ثبت‌نام انجام نشد. لطفاً دوباره تلاش کنید.');
+      const status = Number(error?.status) || 500;
+      return fail(
+        ctx,
+        status,
+        status === 500
+          ? 'ثبت‌نام انجام نشد. لطفاً دوباره تلاش کنید.'
+          : error.message
+      );
     }
-
-    return ctx.send({
-      user: {
-        documentId: user.documentId,
-        fullName: user.fullName,
-        studentClass: user.studentClass,
-        nationalCode: user.nationalCode,
-      },
-    });
   },
 
   /** GET /api/student-auth/me — پروفایل و کارنامه‌های خودِ دانش‌آموز */
@@ -148,7 +80,6 @@ export default {
     const submissions = await strapi.documents('api::submission.submission').findMany({
       filters: { nationalCode: { $eq: user.nationalCode } },
       populate: { quiz: { fields: ['title', 'durationMinutes', 'documentId'] } },
-      status: 'published',
       sort: ['createdAt:desc'],
       limit: MAX_ATTEMPTS_PER_SUBMISSION,
     });

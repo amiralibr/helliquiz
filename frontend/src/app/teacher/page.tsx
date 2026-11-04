@@ -28,6 +28,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import MathRenderer from "@/components/MathRenderer";
+import StudentManager from "@/components/teacher/StudentManager";
 
 // ساختار هر سوال در پاسخ‌نامه
 interface QuestionDetail {
@@ -121,9 +122,12 @@ export default function TeacherDashboard() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   // تب فعال
-  const [activeTab, setActiveTab] = useState<"results" | "quizzes" | "create">(
-    "results"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "results" | "students" | "quizzes" | "create"
+  >("results");
+
+  // تعداد دانش‌آموزان (از کامپوننت مدیریت دانش‌آموز برای برچسب تب)
+  const [studentCount, setStudentCount] = useState(0);
 
   // داده‌های عمومی
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
@@ -1025,6 +1029,14 @@ export default function TeacherDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("students")}
+            className={`tab ${activeTab === "students" ? "tab-active" : ""}`}
+          >
+            <GraduationCap className="h-4 w-4" />
+            دانش‌آموزان{studentCount > 0 ? ` (${studentCount})` : ""}
+          </button>
+
+          <button
             onClick={() => setActiveTab("quizzes")}
             className={`tab ${activeTab === "quizzes" ? "tab-active" : ""}`}
           >
@@ -1074,6 +1086,14 @@ export default function TeacherDashboard() {
           </div>
         ) : (
           <>
+            {/* ================= تب دانش‌آموزان ================= */}
+            {activeTab === "students" && (
+              <StudentManager
+                onCountChange={setStudentCount}
+                onNotice={setSuccessMsg}
+              />
+            )}
+
             {/* ================= تب اول: کارنامه‌ها ================= */}
             {activeTab === "results" && (
               <div className="space-y-6">

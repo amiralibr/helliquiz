@@ -535,7 +535,7 @@ export interface ApiSubmissionSubmission extends Struct.CollectionTypeSchema {
     singularName: 'submission';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     answers: Schema.Attribute.JSON;

@@ -245,7 +245,6 @@ const seedStudent = async (strapi: Core.Strapi, studentRoleId: number) => {
   const score = details.filter((item) => item.isCorrect).reduce((sum, item) => sum + item.weight, 0);
 
   await strapi.documents('api::submission.submission').create({
-    status: 'published',
     data: {
       studentName: 'دانش‌آموز نمونه',
       studentClass: 'نهم ۱',

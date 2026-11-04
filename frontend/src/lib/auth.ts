@@ -179,11 +179,18 @@ export async function signIn(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok || typeof data?.jwt !== "string" || !data.jwt) {
+    const upstreamMessage = String(data?.error?.message || "");
+    const blocked = upstreamMessage.toLowerCase().includes("blocked");
+    const notConfirmed = upstreamMessage.toLowerCase().includes("confirmed");
+
     return {
       ok: false,
-      status: response.ok ? 401 : response.status,
-      message:
-        data?.error?.message || "نام کاربری یا رمز عبور اشتباه است.",
+      status: blocked || notConfirmed ? 403 : response.ok ? 401 : response.status,
+      message: blocked
+        ? "دسترسی این حساب مسدود شده است؛ با دبیر خود تماس بگیرید."
+        : notConfirmed
+          ? "این حساب هنوز تأیید نشده است؛ با دبیر خود تماس بگیرید."
+          : "نام کاربری یا رمز عبور اشتباه است.",
     };
   }
 

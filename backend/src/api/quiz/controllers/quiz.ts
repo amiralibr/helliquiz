@@ -255,7 +255,6 @@ export default factories.createCoreController(
       /* ---------- ۵. ذخیره ---------- */
       try {
         await strapi.documents('api::submission.submission').create({
-          status: 'published',
           data: {
             studentName,
             studentClass,
