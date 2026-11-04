@@ -611,7 +611,7 @@ export default function StudentManager({
               <button
                 type="button"
                 onClick={closeModal}
-                className="text-slate-400 hover:text-slate-200"
+                className="text-muted hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>

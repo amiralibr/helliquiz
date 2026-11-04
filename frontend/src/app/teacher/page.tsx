@@ -1701,7 +1701,7 @@ export default function TeacherDashboard() {
               <h3 className="font-bold text-lg">ویرایش کارنامه دانش‌آموز</h3>
               <button
                 onClick={() => setEditingSub(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1791,7 +1791,7 @@ export default function TeacherDashboard() {
               <h3 className="font-bold text-lg">ویرایش مشخصات آزمون</h3>
               <button
                 onClick={() => setEditingQuiz(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1884,7 +1884,7 @@ export default function TeacherDashboard() {
                   setEditingQuestionQuiz(null);
                   setEditingQuestionIdx(null);
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
