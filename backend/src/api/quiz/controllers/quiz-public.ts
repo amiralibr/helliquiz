@@ -75,11 +75,12 @@ export default {
       return ctx.notFound('آزمون مورد نظر یافت نشد.');
     }
 
-    const publishedQuestions = sortQuestions(
-      (quiz.questions || []).filter((question: any) => question?.publishedAt)
+    // آزمون و سؤال دیگر «پیش‌نویس/منتشرشده» ندارند؛ همهٔ سؤال‌های آزمون برمی‌گردند.
+    const quizQuestions = sortQuestions(
+      (quiz.questions || []).filter((question: any) => Boolean(question))
     );
 
     ctx.set('Cache-Control', 'no-store');
-    return ctx.send({ data: mapQuiz({ ...quiz, questions: publishedQuestions }, true) });
+    return ctx.send({ data: mapQuiz({ ...quiz, questions: quizQuestions }, true) });
   },
 };

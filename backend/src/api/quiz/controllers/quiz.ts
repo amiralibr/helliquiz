@@ -73,7 +73,7 @@ const findQuizWithQuestions = async (strapi: any, identifier: string) => {
       where: { id: Number(identifier) },
       populate: ['questions'],
     });
-    if (legacy && legacy.publishedAt) return legacy;
+    if (legacy) return legacy;
   }
 
   return null;

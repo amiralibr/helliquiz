@@ -5,6 +5,133 @@
 
 > هر جا کد را با `>` یا در بلوک کد دیدی، آن خط‌ها عیناً از فایل هستند. توضیح زیرشان
 > دقیقاً می‌گوید آن خط چه کار می‌کند و اگر نبود چه می‌شد.
+>
+> اگر عجله داری یا می‌خواهی سر کلاس بخوانی، از **پیش‌درآمد** شروع کن؛ آن‌جا هیچ کدی
+> نیست و کل ماجرا به زبان ساده آمده است.
+
+## پیش‌درآمد: امروز چه کاری کردیم؟ (به زبان ساده — برای خواندن سر کلاس)
+
+این بخش هیچ کد ندارد. فقط داستانِ کارهایی است که امروز روی سامانه انجام دادیم، به همان
+ترتیبی که اتفاق افتاد. اگر می‌خواهی سر کلاس برای بچه‌ها توضیح بدهی، کافی است همین
+چند پاراگراف را بخوانی؛ هر جا لازم شد، بخش فنیِ پایین‌تر همان جمله را با کد نشان می‌دهد.
+
+### قدم ۱ — از کجا شروع کردیم؟
+
+اولِ کار، یک ایراد بزرگ داشتیم: دانش‌آموز در سامانه «حساب» نداشت. هر کس صفحهٔ آزمون را
+باز می‌کرد، خودش اسم و کلاس و کد ملی‌اش را تایپ می‌کرد و می‌رفت سراغ سؤال‌ها. معلوم است
+که این‌طوری چه می‌شود: هر کسی می‌توانست اسم هر کسی را بنویسد. کارنامه‌ها هم به یک «اسمِ
+تایپی» وصل بودند، نه به یک آدمِ واقعی با حساب. دبیر هم هیچ راهی نداشت مطمئن شود این
+کارنامه مال همان بچه‌ای است که سر کلاس نشسته.
+
+### قدم ۲ — تصمیم اصلی: هر دانش‌آموز، یک کاربر واقعی
+
+گفتیم حساب دانش‌آموز باید یک کاربر واقعی در خودِ استراپی باشد، با نقش `Student` — همان‌جایی
+که حساب دبیرها هست. این کار سه فایدهٔ روشن داشت:
+
+- دبیر می‌تواند ببیند چه کسی حساب دارد، حساب کسی را قفل کند، یا رمزش را عوض کند.
+- دانش‌آموز با یک کد ملی و رمز وارد می‌شود و همهٔ کارنامه‌هایش را یک‌جا می‌بیند.
+- «نام تایپی» دیگر معنا ندارد؛ نام و کلاس از خودِ حساب خوانده می‌شود.
+
+### قدم ۳ — دانش‌آموز از کجا می‌آید؟ دستِ دبیر
+
+تب تازه‌ای در پنل دبیر ساختیم به اسم «دانش‌آموزان». دبیر نام، کلاس، کد ملی و رمز را
+می‌نویسد، دکمهٔ ساخت را می‌زند و یک کارت می‌بیند که کد ملی و رمز را نشان می‌دهد؛ همان را
+به دانش‌آموز می‌دهد. بعداً هم می‌تواند همان ردیف را ویرایش کند، مسدودش کند یا حذفش کند.
+اگر کد ملی کسی را عوض کند، کارنامه‌های قبلی هم دنبالش می‌آیند و گم نمی‌شوند.
+
+### قدم ۴ — ورود باید امن باشد
+
+رمزها را خودِ استراپی هش می‌کند؛ ما هیچ‌جا رمز را ذخیره نمی‌کنیم. بعد از ورود، توکن در
+کوکی `httpOnly` می‌نشیند؛ یعنی جاوااسکریپت صفحه نمی‌تواند آن را بخواند و بدزدد. کوکی
+دسترسی هم خودش تمدید می‌شود تا بچه وسط آزمون از سامانه بیرون نیفتد.
+
+### قدم ۵ — مرورگر یک راه دارد، نه دو راه
+
+مرورگر هیچ‌وقت مستقیم با استراپی (پورت ۱۳۳۷) حرف نمی‌زند؛ همه‌چیز از `/api/strapi/...`
+رد می‌شود. سودش این است که آدرس داخلی سرور بیرون نمی‌افتد، کوکی‌ها یک‌جا کنترل می‌شوند و
+هر درخواست از یک دروازه رد می‌شود.
+
+### قدم ۶ — هر آزمون، فقط یک کارنامه
+
+هر کارنامه یک «کلید یکتا» دارد که از شناسهٔ آزمون و کد ملی ساخته می‌شود. دیتابیس هم روی
+همان کلید ایندکس یکتا دارد؛ پس حتی اگر دو نفر هم‌زمان دکمهٔ ثبت را بزنند، دومی رد می‌شود.
+اولِ هر بوت هم کارنامه‌های تکراری قدیمی پاک می‌شوند تا این قاعده از روز اول برقرار باشد.
+
+### قدم ۷ — آماده‌سازی برای استفادهٔ واقعی
+
+- کلید `SEED_DEMO` پیش‌فرض `false` شد؛ یعنی در محیط واقعی هیچ حساب و آزمون نمونه‌ای ساخته نمی‌شود.
+- یک صفحهٔ «این صفحه پیدا نشد» و یک صفحهٔ «مشکلی پیش آمد» با همان طراحی سایت ساختیم.
+- رنگ‌های دستی که از تم بیرون بودند (خاکستری‌های `slate`) را برداشتیم تا همه‌چیز یک‌دست باشد.
+
+### قدم ۸ — ایراد امروز، شمارهٔ یک: ثبت‌نام باید برود
+
+بچه‌ها گفتند: «ما ثبت‌نام نمی‌خواهیم. دبیر حساب می‌سازد و همان را می‌دهد.» درست هم بود؛
+تا وقتی دبیر حساب می‌سازد، هر مسیر ثبت‌نامِ اضافه فقط یک راه برای ساختن حسابِ الکی است.
+پس فرم ثبت‌نام از صفحهٔ دانش‌آموز برداشته شد، آدرس `POST /api/student/register` حذف شد و
+تابعِ ساختِ حسابِ عمومی در بک‌اند هم پاک شد. حالا صفحهٔ `/student` فقط دو خانه دارد:
+کد ملی و رمز. زیرش هم نوشته‌ایم: «حساب نداری یا رمزت را فراموش کرده‌ای؟ به دبیر بگو.»
+
+### قدم ۹ — ایراد امروز، شمارهٔ دو: آزمون بدون ورود شروع نمی‌شود
+
+قبلاً هر کسی می‌توانست وارد صفحهٔ آزمون شود و با نوشتن یک اسم، آزمون بدهد. حالا صفحهٔ
+آزمون اول یک کارتِ «ورود به آزمون» نشان می‌دهد: کد ملی و رمز. تا این دو درست نباشد، هیچ
+سؤالی نمی‌آید. بعد از ورود، اسم و کلاس از خودِ حساب خوانده می‌شود و دانش‌آموز فقط دکمهٔ
+«شروع آزمون» را می‌بیند. بک‌اند هم سختگیر شد: اگر کسی بدون ورود مستقیم به سرور درخواست
+بفرستد، جواب `401` می‌گیرد. یعنی حتی اگر کسی صفحه را دور بزند، کارنامه‌ای ثبت نمی‌شود.
+
+### قدم ۱۰ — ایراد امروز، شمارهٔ سه: ۶ آزمون بود، ولی پنل دبیر خالی بود
+
+این جالب‌ترین ایراد امروز بود. استراپی برای هر محتوا دو حالت دارد: «پیش‌نویس» و
+«منتشرشده». پنل دبیر فقط منتشرشده‌ها را می‌خواند؛ شش آزمونی که ساخته بودی هم در حالت
+پیش‌نویس مانده بودند. برای همین در `/admin` دیده می‌شدند و در پنل دبیر نه!
+
+راه‌حل را ساده کردیم: برای آزمون و سؤال، این دوگانگی را کامل برداشتیم. هر آزمونی که
+ذخیره می‌شود، همان لحظه فعال است. بک‌اند هم موقع بالا آمدن، یک بار همهٔ پیش‌نویس‌های قبلی
+را «منتشرشده» می‌کند؛ پس آن شش آزمون هم سر جایشان می‌آیند و چیزی از دست نمی‌رود. حالا
+قانون روشن است: **هر چه در استراپی بسازی، همان لحظه در پنل دبیر و در سایت هست.**
+
+### قدم ۱۱ — سه قانونی که از امروز به بعد داریم
+
+1. حساب دانش‌آموز را **فقط دبیر** می‌سازد.
+2. شرکت در آزمون **بدون ورود** ممکن نیست؛ نه از صفحه، نه از سرور.
+3. هر آزمونی که ساخته می‌شود **همان لحظه فعال** است؛ حالت «پیش‌نویس» نداریم.
+
+### قدم ۱۲ — سؤال‌هایی که سر کلاس پیش می‌آید
+
+**«چرا دانش‌آموز خودش ثبت‌نام نکند؟»** چون آن‌وقت معلوم نیست کیست و دبیر باید دنبال
+حساب‌های ناشناس بگردد. حالا هر حساب یک صاحب مشخص دارد و رمزش را دبیر می‌دهد.
+
+**«اگر رمز کسی یادش رفت؟»** دبیر در تب «دانش‌آموزان» همان ردیف را باز می‌کند و رمز تازه
+می‌گذارد. دانش‌آموز با رمز جدید وارد می‌شود و کارنامه‌های قبلی‌اش سر جایشان هستند.
+
+**«اگر کسی کد ملی دوستش را بداند و با آن آزمون بدهد؟»** بدون رمز نمی‌تواند؛ آزمون فقط با
+حساب باز می‌شود. برای همین رمزها را جدی بگیرید و پیش‌فرض‌ها را عوض کنید.
+
+**«چرا کارنامهٔ من ثبت نشد؟»** چون هر آزمون فقط یک بار ثبت می‌شود. اگر قبلاً داده باشی،
+همان کارنامهٔ قبلی را می‌بینی؛ این‌طوری کسی نمی‌تواند با تکرار آزمون، نمرهٔ بهتری بسازد.
+
+**«آزمون را که در پنل استراپی ساختم، چرا در سایت نبود؟»** آن روزها مشکل «پیش‌نویس» بود؛
+الان دیگر این مشکل وجود ندارد و آزمون تازه همان لحظه در سایت دیده می‌شود.
+
+### چکیدهٔ تغییرات امروز در کد
+
+| فایل | چه چیزی عوض شد |
+| --- | --- |
+| `frontend/src/components/student/StudentAuth.tsx` | فرم ثبت‌نام برداشته شد؛ فقط ورود با کد ملی و رمز |
+| `frontend/src/app/api/student/register/route.ts` | **حذف شد** (دیگر مسیر ثبت‌نامی وجود ندارد) |
+| `backend/src/api/submission/routes/02-student-auth.ts` | فقط مسیر `me` ماند |
+| `backend/src/api/submission/controllers/student-auth.ts` | اکشن `register` حذف شد |
+| `backend/src/api/teacher-students/controllers/teacher-students.ts` | ساخت دانش‌آموز از تابع مشترک `createStudentAccount` استفاده می‌کند |
+| `frontend/src/components/student/QuizLoginGate.tsx` | **فایل تازه** — دروازهٔ ورود قبل از آزمون |
+| `frontend/src/app/quiz/[id]/page.tsx` | بدون نشست، دروازهٔ ورود؛ با نشست، فرم شروع آزمون |
+| `frontend/src/components/QuizRunner.tsx` | فرم شناسنامه حذف شد؛ فقط «شروع آزمون» و ارسال پاسخ‌ها |
+| `backend/src/api/quiz/controllers/quiz.ts` | ثبت کارنامه فقط با توکن دانش‌آموز؛ بدون توکن `401` |
+| `backend/src/api/quiz/content-types/quiz/schema.json` | `draftAndPublish` از `true` به `false` |
+| `backend/src/api/question/content-types/question/schema.json` | `draftAndPublish` از `true` به `false` |
+| `backend/src/api/quiz/controllers/quiz-public.ts` | فیلترهای `status: 'published'` و فیلتر `publishedAt` سؤال‌ها حذف شد |
+| `backend/src/index.ts` | تابع `publishLegacyQuizzes` — انتشار یک‌بارهٔ پیش‌نویس‌های قدیمی |
+| `frontend/src/app/teacher/page.tsx` | فهرست آزمون‌ها دیگر فیلتر وضعیت ندارد؛ پیام «هنوز آزمونی ساخته نشده» |
+| `README.md` · `docs/CODE-TOUR.md` | هم‌تراز شدن با رفتار تازه |
 
 ---
 
@@ -18,11 +145,12 @@
              └─ /api/strapi/* (پروکسی)
 ```
 
-سه قانون که همه‌جای کد تکرار می‌شوند:
+چهار قانون که همه‌جای کد تکرار می‌شوند:
 
 1. مرورگر هیچ‌وقت مستقیم به `127.0.0.1:1337` درخواست نمی‌زند؛ همه‌چیز از `/api/strapi/...`.
 2. توکن‌ها فقط در کوکی `httpOnly` می‌نشینند (جاوااسکریپت آن‌ها را نمی‌بیند).
 3. نقش تعیین می‌کند چه کسی چه کاری می‌کند: `Public` (مهمان) / `Authenticated` (دبیر) / `Student` (دانش‌آموز).
+4. حساب دانش‌آموز را فقط دبیر می‌سازد و آزمون فقط با همان حساب باز می‌شود (نه با تایپ نام).
 
 ---
 
@@ -113,7 +241,44 @@ await knex.raw(
   اعمال نمی‌کند؛ پس خودمان می‌سازیم.
 - برای MySQL شاخهٔ `else` با `ALTER TABLE ... ADD UNIQUE INDEX` اجرا می‌شود.
 
-### ۱-۵) دادهٔ نمونه (پشت کلید `SEED_DEMO`)
+### ۱-۵) پیش‌نویس‌های قدیمی، یک بار منتشر می‌شوند
+
+```ts
+async function publishLegacyQuizzes(strapi: Core.Strapi) {
+  const knex = strapi.db.connection;
+
+  for (const table of ['quizzes', 'questions']) {
+    try {
+      const hasTable = await knex.schema.hasTable(table);
+      if (!hasTable) continue;
+
+      const updated = await knex(table)
+        .whereNull('published_at')
+        .update({ published_at: knex.fn.now() });
+
+      if (Number(updated) > 0) {
+        strapi.log.info(`[publish-backfill] ${updated} رکورد در «${table}» از پیش‌نویس به منتشرشده تبدیل شد.`);
+      }
+    } catch (error) {
+      strapi.log.warn(`[publish-backfill] به‌روزرسانی «${table}» ناموفق بود:`, error);
+    }
+  }
+}
+```
+- `whereNull('published_at')` یعنی «هر ردیفی که هیچ‌وقت منتشر نشده»؛ همین‌ها همان
+  آزمون‌هایی هستند که در `/admin` دیده می‌شدند ولی در پنل دبیر نه.
+- `update({ published_at: knex.fn.now() })` تاریخ انتشار را می‌گذارد تا دیگر «پیش‌نویس»
+  حساب نشوند. برای جدول `questions` هم تکرار می‌شود، چون سؤالِ پیش‌نویس داخل آزمون هم
+  دیده نمی‌شود.
+- `if (!hasTable) continue` جلوی خطا در نصب تازه (که هنوز جدولی ندارد) را می‌گیرد.
+- `try/catch` باعث می‌شود اگر یک جدول مشکل داشت، بالا آمدن استراپی متوقف نشود؛ فقط
+  یک هشدار در لاگ می‌ماند.
+- خروجی در لاگ: `[publish-backfill] N رکورد در «quizzes» از پیش‌نویس به منتشرشده تبدیل شد.`
+- چرا این کار لازم شد؟ چون در بخش ۷ حالت «پیش‌نویس/انتشار» آزمون‌ها را کامل خاموش کردیم؛
+  ردیف‌های قدیمی همچنان `published_at` خالی داشتند و بعضی کوئری‌ها ممکن بود نادیده‌شان
+  بگیرند. با این تابع، دادهٔ قبلی هم با قاعدهٔ تازه هم‌تراز می‌شود.
+
+### ۱-۶) دادهٔ نمونه (پشت کلید `SEED_DEMO`)
 
 ```ts
 if (process.env.SEED_DEMO !== 'true') return;
@@ -206,7 +371,7 @@ if (!teacher) {
 }
 ```
 - مسیر در `routes/teacher-students.ts` با `auth: false` تعریف شده تا خودمان خطای
-  فارسی و کنترل‌شده بدهیم؛ اما نگهبانِ واقعی همین دو خط است.
+  فارسی و کنترل‌شده بدهیم؛ اما نگهبانِ واقعی همین چند خط است.
 
 `resolveTeacherFromContext` در `backend/src/utils/teacher-identity.ts`:
 ```ts
@@ -220,30 +385,32 @@ if (user.role?.type !== TEACHER_ROLE_TYPE) return null;   // 'authenticated'
 - خط آخر: **نقش** باید دبیر باشد؛ دانش‌آموز رد می‌شود (در تست ۴۰۱ گرفت).
 
 ```ts
-const { fullName, studentClass, nationalCode, password } = validateStudentInput({ ... });
-```
-`validateStudentInput` در `backend/src/utils/student-account.ts`:
-```ts
-if (fullName.length < 3) throw httpError(400, 'نام و نام خانوادگی باید دست‌کم ۳ نویسه باشد.');
-if (!isValidNationalCode(nationalCode)) throw httpError(400, 'کد ملی باید دقیقاً ۱۰ رقم و معتبر باشد.');
-if (password.length < MIN_PASSWORD_LENGTH) throw httpError(400, `رمز عبور باید دست‌کم ۸ نویسه باشد.`);
-```
-- `isValidNationalCode` هم طول/رقم‌بودن را چک می‌کند و هم `1234567890`های تکراری‌رقم را
-  رد نمی‌کند ولی `1111111111` را رد می‌کند:
-```ts
-export const isValidNationalCode = (value: string): boolean =>
-  NATIONAL_CODE_PATTERN.test(value) && !/^(\d)\1{9}$/.test(value);
-```
+const student = await createStudentAccount(strapi, {
+  fullName: body.fullName,
+  studentClass: body.studentClass,
+  nationalCode: body.nationalCode,
+  password: body.password,
+});
 
+strapi.log.info(`[teacher-students] ${teacher.username || teacher.email} دانش‌آموز ${student.nationalCode} را ساخت.`);
+
+return ctx.send({ data: toStudentRow(student) });
+```
+- کنترلر فقط «چه کسی می‌خواهد بسازد» را چک می‌کند؛ همهٔ قواعد ساخت حساب در
+  `createStudentAccount` است (فایل `backend/src/utils/student-account.ts`).
+- چرا یک تابع جدا؟ چون قبلاً همین منطق در دو جا نوشته شده بود: پنل دبیر و مسیر
+  «ثبت‌نام عمومی». آن مسیر حذف شد، اما تابع ماند تا اگر فردا قاعده‌ای عوض شود، فقط
+  یک جا عوض شود و دبیر و بقیهٔ کد یک رفتار داشته باشند.
+
+داخل `createStudentAccount`:
 ```ts
+const { fullName, studentClass, nationalCode, password } = validateStudentInput(input);
+
 const existing = await findUserByNationalCode(strapi, nationalCode);
 if (existing) throw httpError(409, 'این کد ملی قبلاً ثبت شده است.');
-```
-- `findUserByNationalCode` سه چیز را می‌گردد: `nationalCode`، `username`، `email`
-  (چون هر سه از کد ملی ساخته می‌شوند) ⇒ حتی اگر کاربری از مسیر دیگری ساخته شده باشد،
-  تکراری رد می‌شود.
 
-```ts
+const role = await getStudentRole(strapi);
+
 const user = await strapi.plugin('users-permissions').service('user').add({
   username: nationalCode,
   email: studentEmail(nationalCode),   // <code>@student.helliquiz.local
@@ -255,13 +422,29 @@ const user = await strapi.plugin('users-permissions').service('user').add({
   fullName, studentClass, nationalCode,
 });
 ```
+`validateStudentInput` همان فایل:
+```ts
+if (fullName.length < 3) throw httpError(400, 'نام و نام خانوادگی باید دست‌کم ۳ نویسه باشد.');
+if (!isValidNationalCode(nationalCode)) throw httpError(400, 'کد ملی باید دقیقاً ۱۰ رقم و معتبر باشد.');
+if (password.length < MIN_PASSWORD_LENGTH) throw httpError(400, `رمز عبور باید دست‌کم ۸ نویسه باشد.`);
+```
+- `isValidNationalCode` هم طول/رقم‌بودن را چک می‌کند و هم کدهای همه‌رقمِ یکسان مثل
+  `1111111111` را رد می‌کند:
+```ts
+export const isValidNationalCode = (value: string): boolean =>
+  NATIONAL_CODE_PATTERN.test(value) && !/^(\d)\1{9}$/.test(value);
+```
+- `findUserByNationalCode` سه چیز را می‌گردد: `nationalCode`، `username`، `email`
+  (چون هر سه از کد ملی ساخته می‌شوند) ⇒ اگر همان کد از مسیر دیگری هم ساخته شده باشد،
+  ۴۰۹ برمی‌گردد و رکورد تکراری ساخته نمی‌شود.
 - `password` را **هش نمی‌کنیم**؛ سرویس `user.add` خودش bcrypt می‌زند. اگر از قبل هش
   کنیم، دو بار هش می‌شود و ورود همیشه شکست می‌خورد.
 - `email` واقعی نیست ولی یکتا لازم است (استراپی ایمیل تکراری را رد می‌کند).
 - `confirmed: true` یعنی لازم نیست ایمیل تأیید شود.
+- اگر دیتابیس خطای `unique` بدهد (مثلاً دو درخواست هم‌زمان)، `catch` همان ۴۰۹ را می‌دهد.
 
 ```ts
-return ctx.send({ data: toStudentRow(user) });
+return ctx.send({ data: toStudentRow(student) });
 ```
 - `toStudentRow` فقط فیلدهای امن را برمی‌گرداند (بدون `password`/`resetPasswordToken`).
 
@@ -396,26 +579,121 @@ return ctx.send({ student: {...}, attempts, stats: {...} });
 - `attempts` همان `shapeSubmission`‌ها هستند: نمره، درصد، تعداد درست، مدت زمان و
   `details` (هر سؤال: متن، گزینه‌ها، انتخاب کاربر، پاسخ درست، درست/غلط).
 
+### ۳-۴) ثبت‌نام برداشته شد
+
+حالا فایل مسیرها فقط یک ردیف دارد:
+```ts
+export default {
+  routes: [
+    { method: 'GET', path: '/student-auth/me', handler: 'student-auth.me', config: { auth: false } },
+  ],
+};
+```
+- مسیر `POST /api/student-auth/register` پاک شد؛ تست: همان آدرس `405` می‌دهد.
+- در فرانت هم `frontend/src/app/api/student/register/route.ts` حذف شد؛ تست: همان آدرس `404` می‌دهد.
+- اکشن `register` از `controllers/student-auth.ts` هم برداشته شد؛ آن فایل حالا فقط
+  توکن را می‌خواند، کاربر را از دیتابیس می‌آورد و کارنامه‌های همان کد ملی را برمی‌گرداند.
+- تنها راهِ ساخت حساب، `POST /api/teacher-students` است (بخش ۲) که دبیر صدا می‌زند.
+- **چرا؟** هر ثبت‌نامی که دبیر خبر نداشته باشد، یعنی یک حساب با صاحب نامعلوم. حالا هر
+  حسابِ دانش‌آموزی حتماً یک دبیر پشتش است و همان دبیر رمزش را می‌داند.
+
+در فرم ورود (`frontend/src/components/student/StudentAuth.tsx`) هم تبِ «ثبت‌نام» و
+فیلدهای نام/کلاس برداشته شد؛ فقط دو خانه ماند: کد ملی و رمز.
+
 ---
 
-## ۴) دانش‌آموز آزمون می‌دهد — `backend/src/api/quiz/controllers/quiz.ts`
+## ۴) دانش‌آموز آزمون می‌دهد
 
-### ۴-۱) هویت از حساب، نه از فرم
+مسیر آزمون سه لایه دارد: صفحهٔ آزمون (دروازهٔ ورود) → فرم شروع → ثبت کارنامه در سرور.
+
+### ۴-۱) صفحهٔ آزمون، دو حالت دارد — `frontend/src/app/quiz/[id]/page.tsx`
+
+```tsx
+const [quiz, session] = await Promise.all([
+  getQuizById(id).catch((error) => {
+    console.error("Failed to load quiz:", error);
+    return null;
+  }),
+  getStudentSession(),
+]);
+
+if (!quiz) notFound();
+
+if (!session) {
+  return <QuizLoginGate quizTitle={quiz.title} />;
+}
+```
+- `getStudentSession()` نشستِ دانش‌آموز را از کوکی می‌خواند (بخش ۳-۲). اگر `null` بود،
+  یعنی کسی وارد نشده ⇒ به‌جای آزمون، کارتِ ورود نشان داده می‌شود.
+- نکتهٔ مهم: این تصمیم **سمت سرور** گرفته می‌شود، نه با جاوااسکریپت مرورگر. پس با
+  دست‌کاری صفحه هم نمی‌شود از آن رد شد.
+- اگر دانش‌آموز قبلاً در همین آزمون شرکت کرده باشد، `session.attempts` پیدا می‌شود و
+  به‌جای فرم، کارنامهٔ قبلی نمایش داده می‌شود.
+
+### ۴-۲) کارتِ ورود — `frontend/src/components/student/QuizLoginGate.tsx`
+
+```tsx
+const response = await fetch("/api/student/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ nationalCode, password }),
+});
+if (!response.ok) throw new Error(data?.error?.message || "...");
+router.refresh();
+```
+- همان مسیر ورودِ پنل دانش‌آموز صدا زده می‌شود؛ پس یک رمز، یک رفتار.
+- `router.refresh()` صفحه را از سرور دوباره می‌سازد؛ این بار کوکی هست، `session` پر
+  می‌شود و به‌جای کارتِ ورود، فرم شروع می‌آید. هیچ ریدایرکتی لازم نیست.
+- روی دکمه، تا وقتی کد ملی ۱۰ رقم و رمز ۸ نویسه نباشد، غیرفعال است.
+
+### ۴-۳) فرم شروع — `frontend/src/components/QuizRunner.tsx`
+
+```tsx
+const { fullName: studentName, studentClass, nationalCode } = student;
+```
+- دیگر `useState` برای نام و کلاس و کد ملی نداریم؛ از propِ `student` می‌آید که
+  صفحهٔ آزمون آن را از نشست پر کرده است.
+- صفحهٔ شروع فقط مشخصات حساب + تعداد سؤال + مدت آزمون را نشان می‌دهد و یک دکمه:
+  «شروع آزمون».
+
+```tsx
+body: JSON.stringify({
+  timeSpentSeconds: Math.min(secondsElapsed, totalSeconds),
+  answers,
+}),
+```
+- به سرور فقط **پاسخ‌ها و زمان** می‌رود. نام و کد ملی نه؛ چون سرور خودش از توکن
+  می‌خواند. این یعنی حتی اگر کسی بتواند این درخواست را دست‌کاری کند، هویتش عوض نمی‌شود.
+
+### ۴-۴) هویت از حساب، نه از فرم — `backend/src/api/quiz/controllers/quiz.ts`
 
 ```ts
 const account = await resolveStudentFromContext(ctx);
 
-if (account) {
-  studentName = cleanText(account.fullName, 80) || studentName;
-  studentClass = cleanText(account.studentClass, 40) || studentClass;
-  nationalCode = account.nationalCode;
+if (!account) {
+  ctx.status = 401;
+  ctx.body = {
+    error: {
+      status: 401,
+      name: 'Unauthorized',
+      message: 'برای شرکت در آزمون باید با کد ملی و رمز عبوری که دبیر داده است وارد شوید.',
+    },
+  };
+  return;
 }
-```
-- مسیر `auth: false` است تا مهمان هم بتواند آزمون بدهد.
-- اما اگر توکن دانش‌آموز همراه درخواست باشد، نام/کلاس/کد ملی **از حساب** خوانده می‌شود
-  و ورودی فرم نادیده گرفته می‌شود ⇒ با کد ملی دیگری نمی‌شود کارنامه ساخت.
 
-### ۴-۲) ضدتکرار
+const studentName = cleanText(account.fullName, 80);
+const studentClass = cleanText(account.studentClass, 40);
+const nationalCode = account.nationalCode;
+```
+- مسیر عمداً `auth: false` مانده تا خودمان بتوانیم خطای **فارسی** بدهیم؛ ولی نگهبانِ
+  واقعی همان `if (!account)` است. بدون توکن، `401` برمی‌گردد (تست شد).
+- نام و کلاس و کد ملی **فقط** از حساب خوانده می‌شوند؛ هیچ‌کدام از `body` خوانده
+  نمی‌شود. پس کسی نمی‌تواند با کد ملی دیگری کارنامه بسازد.
+- اگر حساب ناقص باشد (مثلاً دبیر کلاس را خالی گذاشته)، پیام روشن می‌دهیم:
+  «کلاس/پایه در حساب شما ثبت نشده است؛ با دبیر خود تماس بگیرید.»
+
+### ۴-۵) ضدتکرار
 
 ```ts
 const quizKey = String(quiz.documentId || quiz.id);
@@ -440,7 +718,7 @@ if (previous) {
 - چک دوم: اگر دو درخواست هم‌زمان برسند و هر دو از چک اول رد شوند، **ایندکس یکتا** مانع
   رکورد دوم می‌شود و این `catch` دوباره ۴۰۹ می‌دهد ⇒ مسابقهٔ هم‌زمان هم بی‌خطر است.
 
-### ۴-۳) تصحیح
+### ۴-۶) تصحیح
 
 ```ts
 const correctIndex = resolveCorrectIndex(question, options.length);
@@ -461,7 +739,7 @@ const percentage = totalPossibleScore > 0 ? Math.round((earnedScore / totalPossi
 ```
 - درصد از **مجموع بارم** حساب می‌شود، نه تعداد سؤال.
 
-### ۴-۴) ذخیره
+### ۴-۷) ذخیره
 
 ```ts
 await strapi.documents('api::submission.submission').create({
@@ -517,6 +795,42 @@ if (verdict.limited) {
 - سه تب قبلی (کارنامه‌ها / آزمون‌ها / ساخت آزمون) + تب تازهٔ **دانش‌آموزان** که
   `<StudentManager />` را رندر می‌کند.
 
+```tsx
+const [subRes, quizRes] = await Promise.all([
+  fetch(`${STRAPI_BASE_URL}/api/submissions?populate=*`, { cache: "no-store" }),
+  fetch(`${STRAPI_BASE_URL}/api/quizzes?populate=*`, { cache: "no-store" }),
+]);
+
+if (!subRes.ok || !quizRes.ok) {
+  if (subRes.status === 401 || quizRes.status === 401) handleLogout();
+  throw new Error(await extractStrapiError(failed, 'خطا در برقراری ارتباط با سرور استراپی.'));
+}
+```
+- `populate=*` یعنی «آزمون‌ها را با سؤال‌هایشان بیاور». این آدرس پارامترِ وضعیت ندارد،
+  ولی استراپی به‌طور پیش‌فرض فقط «منتشرشده»ها را برمی‌گرداند؛ همین باعث می‌شد آزمون‌های
+  پیش‌نویس در لیست نیایند (بخش ۷).
+- در دکمه‌های ساخت و ویرایش آزمون هم `?status=published` نوشته شده بود؛ چون این پارامتر
+  روی نوشتن اثری ندارد و فقط سردرگمی می‌ساخت، برداشته شد.
+- `cache: "no-store"` یعنی همیشه نسخهٔ تازه از سرور؛ وگرنه دبیر آزمون تازه‌ساخته را
+  نمی‌دید.
+- `handleLogout()` وقتی صدا زده می‌شود که سرور `401` بدهد؛ یعنی نشست دبیر منقضی شده و
+  باید دوباره وارد شود.
+- اگر سرور خطا بدهد، پیامش بالای صفحه در یک کادر قرمز می‌آید و لیست خالی می‌ماند؛ پس
+  «خالی بودن لیست» همیشه یعنی «داده نیست» نیست — پیام خطا را هم باید خواند.
+
+```tsx
+{quizzes.length === 0 && (
+  <div className="card ...">
+    <p>هنوز آزمونی ساخته نشده است</p>
+    <p>از دکمهٔ «آزمون جدید» شروع کنید؛ آزمون‌هایی که در پنل استراپی می‌سازید هم همین‌جا نمایش داده می‌شوند.</p>
+  </div>
+)}
+```
+- این پیام برای این گذاشته شد که دبیر بداند «صفر آزمون» یعنی واقعاً آزمونی ساخته نشده،
+  نه اینکه سامانه خراب است.
+- کارت هر آزمون آمارش را از همان رکورد می‌خواند: `documentId`، `title`، `durationMinutes`،
+  `questions` و لینک «شرکت در آزمون» که به `/quiz/<documentId>` می‌رود.
+
 ### ۶-۲) `frontend/src/components/teacher/StudentManager.tsx`
 - `load()` فهرست را از `GET /api/strapi/teacher-students` می‌گیرد و تعداد را به تب می‌دهد.
 - `handleSubmit()` ساخت/ویرایش را انجام می‌دهد (بخش ۲-۱).
@@ -532,17 +846,61 @@ if (verdict.limited) {
 
 ---
 
-## ۷) فهرست فایل‌های کلیدی
+## ۷) پیش‌نویس و انتشار — چرا برداشته شد
+
+استراپی به‌طور پیش‌فرض برای هر محتوا دو حالت دارد: **پیش‌نویس** و **منتشرشده**. تا وقتی
+یک رکورد منتشر نشود، Content API آن را برنمی‌گرداند. همین باعث شد شش آزمون در `/admin`
+دیده شوند و در پنل دبیر نه.
+
+```json
+"options": {
+  "draftAndPublish": false
+}
+```
+- این خط در `backend/src/api/quiz/content-types/quiz/schema.json` و
+  `.../question/content-types/question/schema.json` از `true` به `false` تغییر کرد.
+- نتیجه: هیچ آزمون/سؤالی حالت پیش‌نویس ندارد؛ هر رکوردی که ذخیره شود همان لحظه در
+  `GET /api/quizzes` و `/api/quiz-public` هست. (کارنامه‌ها از قبل همین‌طور بودند.)
+- نکتهٔ مهم: تغییر این گزینه با ری‌استارت استراپی اعمال می‌شود؛ در لاگ بوت هم پیام
+  `[publish-backfill] ...` می‌آید (بخش ۱-۵).
+
+```ts
+// قبل
+findOne({ documentId: identifier, status: 'published', populate: ['questions'] })
+// بعد
+findOne({ documentId: identifier, populate: ['questions'] })
+```
+- همهٔ `status: 'published'`ها از `quiz.ts`، `quiz-public.ts` و `index.ts` برداشته شد؛
+  چون نوعِ محتوا دیگر چنین حالتی ندارد و گذاشتنش فقط سردرگمی می‌سازد.
+- اگر جایی این فیلتر می‌ماند، رکوردهای قدیمی که `published_at` خالی دارند باز هم
+  پنهان می‌شدند.
+
+```ts
+// quiz-public.ts
+const quizQuestions = sortQuestions((quiz.questions || []).filter(Boolean));
+```
+- قبلاً سؤال‌ها هم با `question?.publishedAt` فیلتر می‌شدند؛ آن هم برداشته شد تا
+  سؤالِ تازه‌ساخته بلافاصله در آزمون دیده شود.
+
+> اگر روزی خواستیم دوباره «پیش‌نویس» داشته باشیم، فقط کافی است همین دو فایل schema را
+> به `true` برگردانیم و فیلتر `status` را برگردانیم — ولی آن‌وقت باید در پنل دبیر یک
+> دکمهٔ «انتشار» و در لیست، نشانِ «پیش‌نویس» بگذاریم. الان عمداً ساده است.
+
+---
+
+## ۸) فهرست فایل‌های کلیدی
 
 | فایل | نقش |
 | --- | --- |
-| `backend/src/index.ts` | نقش‌ها، مجوزها، نقش پیش‌فرض، ایندکس یکتا، دادهٔ نمونه |
+| `backend/src/index.ts` | نقش‌ها، مجوزها، نقش پیش‌فرض، ایندکس یکتا، انتشار پیش‌نویس‌های قدیمی، دادهٔ نمونه |
 | `backend/src/utils/student-account.ts` | اعتبارسنجی و ساخت حساب دانش‌آموز (یک منبع برای همه) |
 | `backend/src/utils/teacher-identity.ts` | تشخیص دبیر از توکن (نقش `Authenticated`) |
 | `backend/src/utils/student-identity.ts` | تشخیص دانش‌آموز از توکن (برای ثبت کارنامه) |
 | `backend/src/api/teacher-students/*` | CRUD دانش‌آموز توسط دبیر |
 | `backend/src/api/submission/controllers/student-auth.ts` | `me` — پروفایل و کارنامه‌های خودِ دانش‌آموز |
-| `backend/src/api/quiz/controllers/quiz.ts` | تصحیح، ضدتکرار، ذخیرهٔ کارنامه |
+| `backend/src/api/quiz/controllers/quiz.ts` | هویت از توکن، تصحیح، ضدتکرار، ذخیرهٔ کارنامه |
+| `backend/src/api/quiz/controllers/quiz-public.ts` | فهرست و تک‌آزمون برای صفحهٔ سایت (بدون پاسخ درست) |
+| `backend/src/api/{quiz,question}/content-types/*/schema.json` | `draftAndPublish: false` — بدون حالت پیش‌نویس |
 | `backend/src/middlewares/rate-limit.ts` | سقف درخواست |
 | `backend/src/extensions/users-permissions/content-types/user/schema.json` | فیلدهای دانش‌آموز روی کاربر استراپی |
 | `frontend/src/lib/auth.ts` | کوکی‌ها، توکن، ورود، تمدید |
@@ -550,5 +908,8 @@ if (verdict.limited) {
 | `frontend/src/app/api/strapi/[...path]/route.ts` | پروکسی امن به استراپی |
 | `frontend/src/app/api/{student,teacher}/*` | ورود/خروج هر نقش (ثبت‌نام وجود ندارد) |
 | `frontend/src/components/teacher/StudentManager.tsx` | تب مدیریت دانش‌آموزان |
-| `frontend/src/components/student/*` | ورود و داشبورد دانش‌آموز |
+| `frontend/src/components/student/StudentAuth.tsx` | فرم ورود دانش‌آموز (بدون ثبت‌نام) |
+| `frontend/src/components/QuizRunner.tsx` | شروع آزمون، تایمر، ارسال پاسخ‌ها |
+| `frontend/src/components/student/StudentDashboard.tsx` | کارنامه‌ها و پاسخ‌نامهٔ تفکیکی |
+| `frontend/src/app/not-found.tsx` · `frontend/src/app/error.tsx` | صفحهٔ ۴۰۴ و صفحهٔ خطا |
 | `frontend/src/components/student/QuizLoginGate.tsx` | دروازهٔ ورود پیش از شروع آزمون (بدون حساب، آزمون شروع نمی‌شود) |
