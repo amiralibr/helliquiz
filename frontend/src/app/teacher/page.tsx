@@ -28,6 +28,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import MathRenderer from "@/components/MathRenderer";
+import StudentManager from "@/components/teacher/StudentManager";
 
 // ساختار هر سوال در پاسخ‌نامه
 interface QuestionDetail {
@@ -57,12 +58,12 @@ interface SubmissionItem {
 }
 
 // ساختار هر سوال داخل آزمون
-// correctAnswer در UI صفر-بیس است؛ هنگام ذخیره در استراپی به یک-بیس تبدیل می‌شود
+// correctOption همان ایندکس صفر-بیس گزینه صحیح است (همان چیزی که در استراپی ذخیره می‌شود)
 interface QuestionItem {
   documentId?: string;
   questionText: string;
   options: string[];
-  correctAnswer: number;
+  correctOption: number;
   score?: number;
 }
 
@@ -83,41 +84,34 @@ interface TeacherUser {
   email?: string;
 }
 
+// پاسخ صحیح: منبع اصلی correctOption (صفر-بیس) است و داده‌های قدیمی
+// که فقط correctAnswer (یک-بیس) دارند هم پشتیبانی می‌شوند.
+const resolveCorrectOption = (question: Record<string, unknown>): number => {
+  const modern = Number(question?.correctOption);
+  if (Number.isInteger(modern) && modern >= 0) return modern;
+
+  const legacy = Number(question?.correctAnswer);
+  if (!Number.isFinite(legacy)) return 0;
+  return legacy >= 1 ? legacy - 1 : legacy;
+};
+
 // پیام خطای استاندارد از یک مقدار catch شده
 const getErrorMessage = (err: unknown, fallback = "خطای نامشخص") =>
   err instanceof Error ? err.message : fallback;
 
-// استراپی فقط روی IPv4 (0.0.0.0:1337) گوش می‌دهد؛ «localhost» در این سیستم
-// اول به ::1 رزولو می‌شود و باعث TypeError: Failed to fetch در مرورگر می‌شود.
-const STRAPI_BASE_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ||
-  process.env.NEXT_PUBLIC_STRAPI_API_URL ||
-  "http://127.0.0.1:1337";
+// همه‌ی درخواست‌های مرورگر از مسیر نسبی /api/strapi به بک‌اند پروکسی می‌شوند؛
+// بنابراین نه به localhost وابسته‌ایم و نه به CORS.
+const STRAPI_BASE_URL = "/api/strapi";
 
-const TEACHER_TOKEN_KEY = "helliquiz_teacher_token";
-const TEACHER_USER_KEY = "helliquiz_teacher_user";
-
-// استراپی فقط JWT سه‌بخشی (header.payload.signature) را می‌پذیرد؛
-// توکن‌های قدیمی/خراب با همین بررسی کنار گذاشته می‌شوند تا باعث 401 نشوند.
-const isValidJwtShape = (value: string | null): value is string => {
-  if (!value) return false;
-  const parts = value.split(".");
-  return parts.length === 3 && parts.every((p) => p.length > 0);
-};
-
-const readTeacherToken = (): string | null => {
-  if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem(TEACHER_TOKEN_KEY);
-  if (!isValidJwtShape(stored)) {
-    localStorage.removeItem(TEACHER_TOKEN_KEY);
-    return null;
-  }
-  return stored;
-};
+// نشست دبیر در کوکی‌های httpOnly سمت سرور نگه‌داری می‌شود؛ مرورگر
+// هیچ توکنی در localStorage ندارد و همه‌ی درخواست‌ها از پروکسی رد می‌شوند.
+const TEACHER_SESSION_ENDPOINT = "/api/teacher/session";
+const TEACHER_LOGIN_ENDPOINT = "/api/teacher/login";
+const TEACHER_LOGOUT_ENDPOINT = "/api/teacher/logout";
 
 export default function TeacherDashboard() {
   // وضعیت احراز هویت
-  const [token, setToken] = useState<string | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const [teacherUser, setTeacherUser] = useState<TeacherUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -128,9 +122,12 @@ export default function TeacherDashboard() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   // تب فعال
-  const [activeTab, setActiveTab] = useState<"results" | "quizzes" | "create">(
-    "results"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "results" | "students" | "quizzes" | "create"
+  >("results");
+
+  // تعداد دانش‌آموزان (از کامپوننت مدیریت دانش‌آموز برای برچسب تب)
+  const [studentCount, setStudentCount] = useState(0);
 
   // داده‌های عمومی
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
@@ -154,7 +151,7 @@ export default function TeacherDashboard() {
     {
       questionText: "",
       options: ["", "", "", ""],
-      correctAnswer: 0,
+      correctOption: 0,
       score: 10,
     },
   ]);
@@ -189,29 +186,35 @@ export default function TeacherDashboard() {
   const [questionDraft, setQuestionDraft] = useState<QuestionItem>({
     questionText: "",
     options: ["", "", "", ""],
-    correctAnswer: 0,
+    correctOption: 0,
     score: 10,
   });
 
-  // ۱. بررسی ورود پیشین با توکن در LocalStorage
-  // بازیابی نشست از localStorage فقط سمت کلاینت ممکن است؛ الگوی استاندارد restore-on-mount
+  // ۱. بازیابی نشست از کوکی httpOnly (منبع حقیقت سمت سرور است)
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const savedToken = readTeacherToken();
-    if (savedToken) {
-      setToken(savedToken);
-      const savedUser = localStorage.getItem(TEACHER_USER_KEY);
-      if (savedUser) {
-        try {
-          setTeacherUser(JSON.parse(savedUser));
-        } catch {
-          // ignore
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(TEACHER_SESSION_ENDPOINT, { cache: "no-store" });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setTeacherUser(data?.user ?? null);
+          setAuthenticated(true);
         }
+      } catch {
+        // نشست در دسترس نیست؛ فرم ورود نمایش داده می‌شود
+      } finally {
+        if (!cancelled) setAuthLoading(false);
       }
-    } else {
-      localStorage.removeItem(TEACHER_USER_KEY);
-    }
-    setAuthLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // واکشی داده‌ها بعد از داشتن توکن — بعد از تعریف fetchData قرار دارد
@@ -222,7 +225,8 @@ export default function TeacherDashboard() {
     setLoginError(null);
 
     try {
-      const res = await fetch(`${STRAPI_BASE_URL}/api/auth/local`, {
+      // احراز هویت سمت سرور انجام می‌شود و توکن در کوکی httpOnly می‌نشیند
+      const res = await fetch(TEACHER_LOGIN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -231,20 +235,17 @@ export default function TeacherDashboard() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok || typeof data.jwt !== "string" || !data.jwt) {
+      if (!res.ok) {
         throw new Error(
           data?.error?.message ||
             "نام کاربری یا رمز عبور اشتباه است (یا دسترسی فعال نیست)."
         );
       }
 
-      // فیلد jwt برگشتی از استراپی عیناً ذخیره می‌شود
-      setToken(data.jwt);
-      setTeacherUser(data.user);
-      localStorage.setItem(TEACHER_TOKEN_KEY, data.jwt);
-      localStorage.setItem(TEACHER_USER_KEY, JSON.stringify(data.user));
+      setTeacherUser(data.user ?? null);
+      setAuthenticated(true);
       setLoginPassword("");
     } catch (err) {
       setLoginError(getErrorMessage(err, "خطا در احراز هویت با سرور"));
@@ -254,10 +255,11 @@ export default function TeacherDashboard() {
   };
 
   const handleLogout = () => {
-    setToken(null);
+    setAuthenticated(false);
     setTeacherUser(null);
-    localStorage.removeItem(TEACHER_TOKEN_KEY);
-    localStorage.removeItem(TEACHER_USER_KEY);
+    setSubmissions([]);
+    setQuizzes([]);
+    void fetch(TEACHER_LOGOUT_ENDPOINT, { method: "POST" }).catch(() => {});
   };
 
   // پیام خطای دقیق برگشتی از استراپی را استخراج می‌کند
@@ -272,18 +274,12 @@ export default function TeacherDashboard() {
     return `${message} (کد ${res.status})`;
   };
 
-  // درخواست احراز هویت‌شده با JWT ذخیره‌شده؛ در 401 نشست را می‌بندد
+  // درخواست احراز هویت‌شده؛ توکن در کوکی است و پروکسی آن را تزریق می‌کند
   const authedFetch = async (path: string, init: RequestInit = {}) => {
-    const storedToken = token ?? readTeacherToken();
-    if (!storedToken) {
-      handleLogout();
-      throw new Error("توکن احراز هویت یافت نشد. لطفاً دوباره وارد شوید.");
-    }
     const res = await fetch(`${STRAPI_BASE_URL}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${storedToken}`,
         ...(init.headers || {}),
       },
     });
@@ -309,8 +305,8 @@ export default function TeacherDashboard() {
             data: {
               questionText: q.questionText,
               options: q.options,
-              // استراپی پاسخ صحیح را یک-بیس ذخیره می‌کند (کنترلر submit همین فرض را دارد)
-              correctAnswer: q.correctAnswer + 1,
+              // پاسخ صحیح به‌صورت ایندکس صفر-بیس ذخیره می‌شود
+              correctOption: q.correctOption,
               score: Number(q.score) > 0 ? Number(q.score) : 1,
               quiz: quizDocumentId,
             },
@@ -336,22 +332,16 @@ export default function TeacherDashboard() {
   };
 
   // دریافت همه سابمیشن‌ها و آزمون‌ها
-  const fetchData = async (activeJwt = token) => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const headers = {
-        ...(activeJwt ? { Authorization: `Bearer ${activeJwt}` } : {}),
-      };
-
       const [subRes, quizRes] = await Promise.all([
         fetch(`${STRAPI_BASE_URL}/api/submissions?populate=*`, {
-          headers,
           cache: "no-store",
         }),
         fetch(`${STRAPI_BASE_URL}/api/quizzes?populate=*`, {
-          headers,
           cache: "no-store",
         }),
       ]);
@@ -430,16 +420,12 @@ export default function TeacherDashboard() {
           description: data.description || "",
           durationMinutes: data.durationMinutes || 15,
           slug: data.slug || "",
-          // correctAnswer در استراپی یک-بیس ذخیره می‌شود؛ برای UI به صفر-بیس تبدیل می‌کنیم
           questions: Array.isArray(data.questions)
             ? data.questions.map((q: any) => ({
                 documentId: q.documentId || q.id,
                 questionText: q.questionText || "",
                 options: Array.isArray(q.options) ? q.options : [],
-                correctAnswer:
-                  Number(q.correctAnswer) >= 1
-                    ? Number(q.correctAnswer) - 1
-                    : 0,
+                correctOption: resolveCorrectOption(q),
                 score: q.score ?? 10,
               }))
             : [],
@@ -452,9 +438,7 @@ export default function TeacherDashboard() {
       console.error(err);
       if (err instanceof TypeError) {
         setError(
-          "ارتباط با سرور استراپی برقرار نشد (خطای شبکه). بررسی کنید بک‌اند روی " +
-            STRAPI_BASE_URL +
-            " در حال اجرا باشد و فیلترشکن/افزونه‌های مرورگر آن را مسدود نکرده باشند."
+          "ارتباط با سرور آزمون برقرار نشد (خطای شبکه). بررسی کنید سرویس بک‌اند در حال اجرا باشد."
         );
       } else {
         setError(getErrorMessage(err, "خطا در واکشی داده‌ها از استراپی"));
@@ -464,13 +448,13 @@ export default function TeacherDashboard() {
     }
   };
 
-  // واکشی داده‌ها بعد از داشتن توکن
+  // واکشی داده‌ها بعد از تأیید نشست
   useEffect(() => {
-    if (token) {
-      fetchData(token);
+    if (authenticated) {
+      fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchData در هر رندر بازسازی می‌شود و فراخوانی مجدد آن خطا ایجاد می‌کند
-  }, [token]);
+  }, [authenticated]);
 
   // ==================== عملیات سابمیشن (کارنامه) ====================
   const handleDeleteSubmission = async (sub: SubmissionItem) => {
@@ -682,7 +666,7 @@ export default function TeacherDashboard() {
     setQuestionDraft({
       questionText: question.questionText || "",
       options: question.options ? [...question.options] : ["", "", "", ""],
-      correctAnswer: question.correctAnswer ?? 0,
+      correctOption: question.correctOption ?? 0,
       score: question.score ?? 10,
     });
   };
@@ -709,7 +693,7 @@ export default function TeacherDashboard() {
             data: {
               questionText: questionDraft.questionText,
               options: questionDraft.options,
-              correctAnswer: questionDraft.correctAnswer + 1, // یک-بیس در استراپی
+              correctOption: questionDraft.correctOption,
               score: Number(questionDraft.score) > 0 ? Number(questionDraft.score) : 1,
             },
           }),
@@ -740,7 +724,7 @@ export default function TeacherDashboard() {
       {
         questionText: "",
         options: ["", "", "", ""],
-        correctAnswer: 0,
+        correctOption: 0,
         score: 10,
       },
     ]);
@@ -806,7 +790,7 @@ export default function TeacherDashboard() {
           {
             questionText: "",
             options: ["", "", "", ""],
-            correctAnswer: 0,
+            correctOption: 0,
             score: 10,
           },
         ]);
@@ -883,7 +867,7 @@ export default function TeacherDashboard() {
   }
 
   // اگر توکن نبود => نمایش صفحه لاگین دبیر
-  if (!token) {
+  if (!authenticated) {
     return (
       <div
         className="min-h-screen flex items-center justify-center p-4"
@@ -1045,6 +1029,14 @@ export default function TeacherDashboard() {
           </button>
 
           <button
+            onClick={() => setActiveTab("students")}
+            className={`tab ${activeTab === "students" ? "tab-active" : ""}`}
+          >
+            <GraduationCap className="h-4 w-4" />
+            دانش‌آموزان{studentCount > 0 ? ` (${studentCount})` : ""}
+          </button>
+
+          <button
             onClick={() => setActiveTab("quizzes")}
             className={`tab ${activeTab === "quizzes" ? "tab-active" : ""}`}
           >
@@ -1094,6 +1086,14 @@ export default function TeacherDashboard() {
           </div>
         ) : (
           <>
+            {/* ================= تب دانش‌آموزان ================= */}
+            {activeTab === "students" && (
+              <StudentManager
+                onCountChange={setStudentCount}
+                onNotice={setSuccessMsg}
+              />
+            )}
+
             {/* ================= تب اول: کارنامه‌ها ================= */}
             {activeTab === "results" && (
               <div className="space-y-6">
@@ -1651,10 +1651,10 @@ export default function TeacherDashboard() {
                               <input
                                 type="radio"
                                 name={`correct-${qIndex}`}
-                                checked={q.correctAnswer === optIdx}
+                                checked={q.correctOption === optIdx}
                                 onChange={() => {
                                   const updated = [...questions];
-                                  updated[qIndex].correctAnswer = optIdx;
+                                  updated[qIndex].correctOption = optIdx;
                                   setQuestions(updated);
                                 }}
                                 title="انتخاب به عنوان پاسخ صحیح"
@@ -1701,7 +1701,7 @@ export default function TeacherDashboard() {
               <h3 className="font-bold text-lg">ویرایش کارنامه دانش‌آموز</h3>
               <button
                 onClick={() => setEditingSub(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1791,7 +1791,7 @@ export default function TeacherDashboard() {
               <h3 className="font-bold text-lg">ویرایش مشخصات آزمون</h3>
               <button
                 onClick={() => setEditingQuiz(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1884,7 +1884,7 @@ export default function TeacherDashboard() {
                   setEditingQuestionQuiz(null);
                   setEditingQuestionIdx(null);
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-muted hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1919,11 +1919,11 @@ export default function TeacherDashboard() {
                       <input
                         type="radio"
                         name="edit-question-correct"
-                        checked={questionDraft.correctAnswer === oIdx}
+                        checked={questionDraft.correctOption === oIdx}
                         onChange={() =>
                           setQuestionDraft({
                             ...questionDraft,
-                            correctAnswer: oIdx,
+                            correctOption: oIdx,
                           })
                         }
                         title="گزینه صحیح"

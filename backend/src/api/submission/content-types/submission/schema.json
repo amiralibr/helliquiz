@@ -7,33 +7,44 @@
     "displayName": "Submission"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {
     "studentName": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 80
+    },
+    "studentClass": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "nationalCode": {
+      "type": "string",
+      "maxLength": 10
     },
     "score": {
-      "type": "integer"
+      "type": "integer",
+      "default": 0
     },
     "timeSpentSeconds": {
-      "type": "integer"
+      "type": "integer",
+      "default": 0
     },
     "answers": {
       "type": "json"
+    },
+    "submissionKey": {
+      "type": "string",
+      "unique": true,
+      "private": true,
+      "description": "کلید یکتای «آزمون:کد ملی» برای جلوگیری از ثبت کارنامه تکراری"
     },
     "quiz": {
       "type": "relation",
       "relation": "manyToOne",
       "target": "api::quiz.quiz",
       "inversedBy": "submissions"
-    },
-    "studentClass": {
-      "type": "string"
-    },
-    "nationalCode": {
-      "type": "string"
     }
   }
 }

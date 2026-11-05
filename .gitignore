@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .next/
 out/
 .strapi/
@@ -8,8 +8,17 @@ dist/
 .tmp/
 *.db
 .env
+.env.local
 .env.*
+!.env.example
 npm-debug.log*
 yarn-debug.log*
 .DS_Store
 Thumbs.db
+
+# ------------------------------------------------------------------
+# دارایی‌های بسته‌ی طراحی ui-ux-pro-max (عمداً از مخزن خارج شده‌اند
+# اما فایل‌ها روی دیسک دست‌نخورده باقی می‌مانند)
+# ------------------------------------------------------------------
+.uiux-skill/
+ui-ux-pro-max-skill-main*.zip
