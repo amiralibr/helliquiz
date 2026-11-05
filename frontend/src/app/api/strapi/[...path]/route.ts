@@ -41,7 +41,11 @@ async function proxy(
 ) {
   const { path } = await context.params;
 
-  const targetUrl = `${STRAPI_INTERNAL_URL}/api/${path
+  // بعضی بخش‌ها مسیر را با «/api» صدا می‌زنند (`/api/strapi/api/quizzes`).
+  // استراپی خودش پیشوند /api را دارد، پس اگر تکراری بود همان‌جا حذفش می‌کنیم.
+  const segments = path[0] === "api" ? path.slice(1) : path;
+
+  const targetUrl = `${STRAPI_INTERNAL_URL}/api/${segments
     .map((segment) => encodeURIComponent(segment))
     .join("/")}${request.nextUrl.search}`;
 

@@ -275,8 +275,12 @@ export default function TeacherDashboard() {
   };
 
   // درخواست احراز هویت‌شده؛ توکن در کوکی است و پروکسی آن را تزریق می‌کند
+  // پروکسی خودش پیشوند /api استراپی را اضافه می‌کند؛ پس مسیرِ ورودی نباید با «/api» شروع شود.
+  // (اگر کسی «/api/quizzes» بدهد، خودش پاکش می‌کنیم تا آدرس دوبار api نشود.)
+  const strapiPath = (path: string) => path.replace(/^\/api(?=\/|$)/, "");
+
   const authedFetch = async (path: string, init: RequestInit = {}) => {
-    const res = await fetch(`${STRAPI_BASE_URL}${path}`, {
+    const res = await fetch(`${STRAPI_BASE_URL}${strapiPath(path)}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -299,7 +303,7 @@ export default function TeacherDashboard() {
     const failed: QuestionItem[] = [];
     for (const q of quizQuestions) {
       try {
-        const res = await authedFetch(`/api/questions?status=published`, {
+        const res = await authedFetch(`/api/questions`, {
           method: "POST",
           body: JSON.stringify({
             data: {
@@ -338,10 +342,10 @@ export default function TeacherDashboard() {
       setError(null);
 
       const [subRes, quizRes] = await Promise.all([
-        fetch(`${STRAPI_BASE_URL}/api/submissions?populate=*`, {
+        fetch(`${STRAPI_BASE_URL}/submissions?populate=*`, {
           cache: "no-store",
         }),
-        fetch(`${STRAPI_BASE_URL}/api/quizzes?populate=*`, {
+        fetch(`${STRAPI_BASE_URL}/quizzes?populate=*`, {
           cache: "no-store",
         }),
       ]);
@@ -498,7 +502,7 @@ export default function TeacherDashboard() {
     try {
       setActionId(`save-sub-${id}`);
       const res = await authedFetch(
-        `/api/submissions/${encodeURIComponent(id)}?status=published`,
+        `/api/submissions/${encodeURIComponent(id)}`,
         {
           method: "PUT",
           body: JSON.stringify({
@@ -686,7 +690,7 @@ export default function TeacherDashboard() {
       setActionId(`save-q-${question.documentId}`);
 
       const res = await authedFetch(
-        `/api/questions/${encodeURIComponent(question.documentId)}?status=published`,
+        `/api/questions/${encodeURIComponent(question.documentId)}`,
         {
           method: "PUT",
           body: JSON.stringify({
