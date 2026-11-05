@@ -75,7 +75,7 @@ const ensureRolePermissions = async (strapi, roleId, actions) => {
 - خط `if (!exists)` جلوی مجوز تکراری را می‌گیرد؛ پس اجرای مکرّر بوت بی‌خطر است
   (idempotent).
 
-### ۱-۳) نقش پیش‌فرض ثبت‌نام
+### ۱-۳) نقش پیش‌فرض ثبت‌نامِ مستقیم users-permissions
 
 ```ts
 const setDefaultRegistrationRole = async (strapi, roleId) => {
@@ -84,7 +84,9 @@ const setDefaultRegistrationRole = async (strapi, roleId) => {
 };
 ```
 - همان تنظیمی که در `/admin → Settings → Users & Permissions → Advanced` دیده می‌شود.
-- یعنی هر کسی که از مسیر عمومی ثبت‌نام کند، **دانش‌آموز** می‌شود، نه دبیر.
+- ثبت‌نام عمومی خودِ سامانه حذف شده است (حساب دانش‌آموز را فقط دبیر می‌سازد)،
+  اما اگر کسی مستقیم به `/api/auth/local/register` استراپی بزند، نقشش **دانش‌آموز**
+  می‌شود، نه دبیر.
 
 ### ۱-۴) ایندکس یکتا و پاک‌سازی کارنامه‌های تکراری
 
@@ -468,7 +470,8 @@ await strapi.documents('api::submission.submission').create({
 });
 ```
 - همه‌چیز در یک رکورد: نمره، زمان، و `answers` که هم نتیجهٔ نهایی و هم پاسخ‌های خام را دارد.
-- کارنامه‌ها عمداً `draftAndPublish: false` هستند (`content-types/submission/schema.json`)؛
+- آزمون، سؤال و کارنامه عمداً `draftAndPublish: false` هستند
+  (`content-types/{quiz,question,submission}/schema.json`)؛
   وگرنه استراپی برای هر کارنامه دو ردیف (پیش‌نویس + منتشر) می‌ساخت، ایندکس یکتا
   می‌شکست و داشبورد خالی می‌ماند.
 
@@ -477,7 +480,7 @@ await strapi.documents('api::submission.submission').create({
 ## ۵) محدودیت نرخ — `backend/src/middlewares/rate-limit.ts`
 
 ```ts
-const AUTH_PREFIXES = ['/api/auth/local/register', '/api/auth/local', '/api/student-auth/login', '/api/student-auth/register'];
+const AUTH_PREFIXES = ['/api/auth/local'];
 const SUBMIT_ROUTE = /^\/api\/quizzes\/[^/]+\/submit\/?$/;
 ```
 ```ts
@@ -538,13 +541,14 @@ if (verdict.limited) {
 | `backend/src/utils/teacher-identity.ts` | تشخیص دبیر از توکن (نقش `Authenticated`) |
 | `backend/src/utils/student-identity.ts` | تشخیص دانش‌آموز از توکن (برای ثبت کارنامه) |
 | `backend/src/api/teacher-students/*` | CRUD دانش‌آموز توسط دبیر |
-| `backend/src/api/submission/controllers/student-auth.ts` | ثبت‌نام عمومی + `me` (کارنامه‌های من) |
+| `backend/src/api/submission/controllers/student-auth.ts` | `me` — پروفایل و کارنامه‌های خودِ دانش‌آموز |
 | `backend/src/api/quiz/controllers/quiz.ts` | تصحیح، ضدتکرار، ذخیرهٔ کارنامه |
 | `backend/src/middlewares/rate-limit.ts` | سقف درخواست |
 | `backend/src/extensions/users-permissions/content-types/user/schema.json` | فیلدهای دانش‌آموز روی کاربر استراپی |
 | `frontend/src/lib/auth.ts` | کوکی‌ها، توکن، ورود، تمدید |
 | `frontend/src/lib/student-session.ts` | خواندن نشست دانش‌آموز در سرور |
 | `frontend/src/app/api/strapi/[...path]/route.ts` | پروکسی امن به استراپی |
-| `frontend/src/app/api/{student,teacher}/*` | ورود/ثبت‌نام/خروج هر نقش |
+| `frontend/src/app/api/{student,teacher}/*` | ورود/خروج هر نقش (ثبت‌نام وجود ندارد) |
 | `frontend/src/components/teacher/StudentManager.tsx` | تب مدیریت دانش‌آموزان |
 | `frontend/src/components/student/*` | ورود و داشبورد دانش‌آموز |
+| `frontend/src/components/student/QuizLoginGate.tsx` | دروازهٔ ورود پیش از شروع آزمون (بدون حساب، آزمون شروع نمی‌شود) |

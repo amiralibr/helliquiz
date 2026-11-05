@@ -43,7 +43,6 @@ export default {
   /** GET /api/quiz-public — فهرست آزمون‌های منتشرشده (بدون سؤال) */
   async list(ctx: any) {
     const quizzes = await strapi.documents('api::quiz.quiz').findMany({
-      status: 'published',
       populate: ['questions'],
       sort: ['createdAt:desc'],
       limit: 100,
@@ -63,14 +62,13 @@ export default {
 
     let quiz: any = await strapi.documents('api::quiz.quiz').findOne({
       documentId: identifier,
-      status: 'published',
       populate: ['questions'],
     });
 
     if (!quiz && /^\d+$/.test(identifier)) {
       quiz = await strapi
         .documents('api::quiz.quiz')
-        .findFirst({ filters: { id: Number(identifier) }, status: 'published', populate: ['questions'] });
+        .findFirst({ filters: { id: Number(identifier) }, populate: ['questions'] });
     }
 
     if (!quiz) {

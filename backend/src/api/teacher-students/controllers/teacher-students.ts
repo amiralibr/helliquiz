@@ -11,13 +11,12 @@
 import {
   USER_UID,
   cleanText,
+  createStudentAccount,
   findUserByNationalCode,
-  getStudentRole,
   httpError,
   isValidNationalCode,
   MIN_PASSWORD_LENGTH,
   studentEmail,
-  validateStudentInput,
   type AppError,
 } from '../../../utils/student-account';
 import { resolveTeacherFromContext } from '../../../utils/teacher-identity';
@@ -137,38 +136,18 @@ export default {
     const body = (ctx.request.body || {}) as Record<string, unknown>;
 
     try {
-      const { fullName, studentClass, nationalCode, password } = validateStudentInput({
+      const student = await createStudentAccount(strapi, {
         fullName: body.fullName,
         studentClass: body.studentClass,
         nationalCode: body.nationalCode,
         password: body.password,
       });
 
-      const existing = await findUserByNationalCode(strapi, nationalCode);
-      if (existing) {
-        throw httpError(409, 'این کد ملی قبلاً ثبت شده است.');
-      }
-
-      const role = await getStudentRole(strapi);
-
-      const user: any = await strapi.plugin('users-permissions').service('user').add({
-        username: nationalCode,
-        email: studentEmail(nationalCode),
-        password,
-        provider: 'local',
-        confirmed: true,
-        blocked: false,
-        role: role.id,
-        fullName,
-        studentClass,
-        nationalCode,
-      });
-
       strapi.log.info(
-        `[teacher-students] ${teacher.username || teacher.email} دانش‌آموز ${nationalCode} را ساخت.`
+        `[teacher-students] ${teacher.username || teacher.email} دانش‌آموز ${student.nationalCode} را ساخت.`
       );
 
-      return ctx.send({ data: toStudentRow(user) });
+      return ctx.send({ data: toStudentRow(student) });
     } catch (error) {
       return sendError(ctx, error, 'ساخت حساب دانش‌آموز ناموفق بود.');
     }

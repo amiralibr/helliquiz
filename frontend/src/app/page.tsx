@@ -132,7 +132,7 @@ async function StudentShortcut() {
           </div>
         </div>
         <Link href="/student" className="btn btn-primary btn-sm shrink-0">
-          ورود / ثبت‌نام
+          ورود دانش‌آموز
         </Link>
       </div>
     );

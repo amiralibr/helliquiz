@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getQuizById } from "@/lib/api";
 import { getStudentSession } from "@/lib/student-session";
 import QuizRunner from "@/components/QuizRunner";
+import QuizLoginGate from "@/components/student/QuizLoginGate";
 import { CheckCircle2, ArrowLeft, Trophy } from "lucide-react";
 
 export const instant = false;
@@ -26,9 +27,14 @@ export default async function QuizPage({ params }: QuizPageProps) {
     notFound();
   }
 
+  // ورود اجباری: بدون حساب دانش‌آموزی (ساختهٔ دبیر) هیچ آزمونی شروع نمی‌شود.
+  if (!session) {
+    return <QuizLoginGate quizTitle={quiz.title} />;
+  }
+
   // اگر دانش‌آموز قبلاً در این آزمون شرکت کرده باشد، به‌جای فرم آزمون
   // کارنامه‌ی قبلی نمایش داده می‌شود (هر آزمون فقط یک بار).
-  const previousAttempt = session?.attempts.find(
+  const previousAttempt = session.attempts.find(
     (attempt) => attempt.quiz.documentId === quiz.id
   );
 
@@ -85,15 +91,11 @@ export default async function QuizPage({ params }: QuizPageProps) {
   return (
     <QuizRunner
       quiz={quiz}
-      student={
-        session
-          ? {
-              fullName: session.student.fullName,
-              studentClass: session.student.studentClass,
-              nationalCode: session.student.nationalCode,
-            }
-          : null
-      }
+      student={{
+        fullName: session.student.fullName,
+        studentClass: session.student.studentClass,
+        nationalCode: session.student.nationalCode,
+      }}
     />
   );
 }

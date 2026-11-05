@@ -20,21 +20,18 @@ import {
 
 interface QuizRunnerProps {
   quiz: Quiz;
-  student?: {
+  /** مشخصات از حساب دانش‌آموزی خوانده می‌شود؛ ورود دستی وجود ندارد. */
+  student: {
     fullName: string;
     studentClass: string;
     nationalCode: string;
-  } | null;
+  };
 }
 
-const NATIONAL_CODE_PATTERN = /^\d{10}$/;
-
-export default function QuizRunner({ quiz, student = null }: QuizRunnerProps) {
-  /* ---------- مرحله ۱: شناسنامه ---------- */
-  const [studentName, setStudentName] = useState(student?.fullName ?? "");
-  const [studentClass, setStudentClass] = useState(student?.studentClass ?? "");
-  const [nationalCode, setNationalCode] = useState(student?.nationalCode ?? "");
+export default function QuizRunner({ quiz, student }: QuizRunnerProps) {
+  /* ---------- مرحله ۱: شروع آزمون ---------- */
   const [isStarted, setIsStarted] = useState(false);
+  const { fullName: studentName, studentClass, nationalCode } = student;
 
   /* ---------- مرحله ۲: آزمون ---------- */
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -85,9 +82,6 @@ export default function QuizRunner({ quiz, student = null }: QuizRunnerProps) {
           method: "POST",
           headers: { "Content-Type": "application/json; charset=utf-8" },
           body: JSON.stringify({
-            studentName,
-            studentClass,
-            nationalCode,
             timeSpentSeconds: Math.min(secondsElapsed, totalSeconds),
             answers,
           }),
@@ -124,18 +118,7 @@ export default function QuizRunner({ quiz, student = null }: QuizRunnerProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [
-    answers,
-    isSubmitting,
-    nationalCode,
-    quiz.documentId,
-    quiz.id,
-    result,
-    secondsElapsed,
-    studentClass,
-    studentName,
-    totalSeconds,
-  ]);
+  }, [answers, isSubmitting, quiz.documentId, quiz.id, result, secondsElapsed, totalSeconds]);
 
   useEffect(() => {
     submitRef.current = handleSubmit;
@@ -147,12 +130,7 @@ export default function QuizRunner({ quiz, student = null }: QuizRunnerProps) {
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const isFormValid =
-    studentName.trim().length >= 3 &&
-    studentClass.trim().length >= 1 &&
-    NATIONAL_CODE_PATTERN.test(nationalCode.trim());
-
-  /* ==================== شناسنامه ==================== */
+  /* ==================== شروع آزمون ==================== */
   if (!isStarted) {
     return (
       <div className="mx-auto my-10 max-w-md animate-fade-up">
@@ -161,108 +139,71 @@ export default function QuizRunner({ quiz, student = null }: QuizRunnerProps) {
             HQ
           </div>
 
-          <h1 className="mb-2 text-2xl font-black text-white">
-            ورود به آزمون
-          </h1>
+          <h1 className="mb-2 text-2xl font-black text-white">{quiz.title}</h1>
           <p className="mb-6 text-xs text-muted">
-            {quiz.title}
+            پیش از شروع، مشخصات حساب خود را یک بار بررسی کنید.
           </p>
 
-          {student ? (
-            <div className="alert alert-success mb-5 items-center">
-              <UserCheck className="h-5 w-5 shrink-0" />
-              <span className="text-xs leading-6">
-                با حساب <b>{student.fullName}</b> وارد شده‌اید؛ مشخصات به‌صورت خودکار
-                از پروفایل شما ثبت می‌شود.
-              </span>
-            </div>
-          ) : (
-            <div className="alert alert-warning mb-5 items-start">
-              <Info className="h-5 w-5 shrink-0" />
-              <span className="text-xs leading-6">
-                اگر وارد پنل دانش‌آموزی شوید، کارنامه به‌طور خودکار در پنل شما ذخیره
-                می‌شود و بعداً می‌توانید پاسخ‌های درست و غلط را ببینید.
-              </span>
-            </div>
-          )}
+          <div className="alert alert-success mb-5 items-center">
+            <UserCheck className="h-5 w-5 shrink-0" />
+            <span className="text-xs leading-6">
+              با حساب <b>{studentName}</b> وارد شده‌اید؛ کارنامه به‌صورت خودکار روی همین
+              حساب ذخیره می‌شود.
+            </span>
+          </div>
 
-          <div className="space-y-4 text-sm">
-            <div>
-              <label className="label" htmlFor="student-name">
-                نام و نام خانوادگی
-              </label>
-              <input
-                id="student-name"
-                type="text"
-                placeholder="مثال: امیرعلی برخورداری"
-                value={studentName}
-                disabled={Boolean(student)}
-                onChange={(event) => setStudentName(event.target.value)}
-                className="input disabled:opacity-60"
-              />
+          <dl className="mb-5 divide-y divide-hairline rounded-xl border border-hairline bg-background/40 text-xs">
+            <div className="flex items-center justify-between px-3 py-2">
+              <dt className="text-muted">نام و نام خانوادگی</dt>
+              <dd className="font-bold text-white">{studentName}</dd>
             </div>
-
-            <div>
-              <label className="label" htmlFor="student-class">
-                کلاس / پایه
-              </label>
-              <input
-                id="student-class"
-                type="text"
-                placeholder="مثال: نهم ۱"
-                value={studentClass}
-                disabled={Boolean(student)}
-                onChange={(event) => setStudentClass(event.target.value)}
-                className="input disabled:opacity-60"
-              />
+            <div className="flex items-center justify-between px-3 py-2">
+              <dt className="text-muted">کلاس / پایه</dt>
+              <dd className="font-bold text-white">{studentClass}</dd>
             </div>
-
-            <div>
-              <label className="label" htmlFor="student-national-code">
-                کد ملی (۱۰ رقم)
-              </label>
-              <input
-                id="student-national-code"
-                type="text"
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="0012345678"
-                value={nationalCode}
-                disabled={Boolean(student)}
-                onChange={(event) =>
-                  setNationalCode(event.target.value.replace(/\D/g, "").slice(0, 10))
-                }
-                className="input tabular-nums-fa disabled:opacity-60"
-              />
+            <div className="flex items-center justify-between px-3 py-2">
+              <dt className="text-muted">کد ملی</dt>
+              <dd className="font-bold text-white tabular-nums-fa">{nationalCode}</dd>
             </div>
+          </dl>
 
-            <div className="flex items-center justify-between rounded-xl border border-hairline bg-background/40 px-3 py-2 text-xs text-muted">
+          <div className="mb-5 space-y-2 text-xs">
+            <div className="flex items-center justify-between rounded-xl border border-hairline bg-background/40 px-3 py-2 text-muted">
+              <span>تعداد سؤال</span>
+              <b className="text-white tabular-nums-fa">{questions.length} سؤال</b>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-hairline bg-background/40 px-3 py-2 text-muted">
               <span className="flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
                 مدت آزمون
               </span>
-              <b className="tabular-nums-fa">{quiz.durationMinutes} دقیقه</b>
+              <b className="text-white tabular-nums-fa">{quiz.durationMinutes} دقیقه</b>
             </div>
-
-            <button
-              type="button"
-              disabled={!isFormValid}
-              onClick={() => setIsStarted(true)}
-              className="btn btn-primary mt-2 w-full"
-            >
-              تایید و شروع آزمون
-            </button>
-
-            {!student && (
-              <Link
-                href="/student"
-                className="flex items-center justify-center gap-1.5 text-xs text-muted transition hover:text-indigo-300"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                ورود / ثبت‌نام پنل دانش‌آموزی
-              </Link>
-            )}
           </div>
+
+          <div className="alert alert-warning mb-5 items-start">
+            <Info className="h-5 w-5 shrink-0" />
+            <span className="text-xs leading-6">
+              با شروع آزمون، تایمر روشن می‌شود و هر دانش‌آموز فقط یک بار می‌تواند
+              کارنامه ثبت کند.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsStarted(true)}
+            className="btn btn-primary w-full"
+          >
+            شروع آزمون
+          </button>
+
+          <Link
+            href="/student"
+            className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted transition hover:text-indigo-300"
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            بازگشت به پنل من
+          </Link>
         </div>
       </div>
     );

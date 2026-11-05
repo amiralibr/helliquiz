@@ -16,12 +16,7 @@ const AUTH_MAX = 10;
 const SUBMIT_MAX = 20;
 
 // فقط مسیرهای ورود/ثبت‌نام سقف سخت‌گیرانه دارند؛ خواندن نشست (/me) سقف عمومی دارد
-const AUTH_PREFIXES = [
-  '/api/auth/local/register',
-  '/api/auth/local',
-  '/api/student-auth/login',
-  '/api/student-auth/register',
-];
+const AUTH_PREFIXES = ['/api/auth/local'];
 const SUBMIT_ROUTE = /^\/api\/quizzes\/[^/]+\/submit\/?$/;
 
 const createLimiter = (windowMs: number, max: number) => {

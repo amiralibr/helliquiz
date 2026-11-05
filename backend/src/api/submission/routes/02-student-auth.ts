@@ -1,16 +1,12 @@
 /**
- * مسیرهای اختصاصی حساب دانش‌آموز.
- * کاربران در مدل users-permissions نگه‌داری می‌شوند؛ این مسیرها فقط
- * ثبت‌نام، مهاجرت رمز قدیمی و خواندن کارنامه‌ی خودِ دانش‌آموز را انجام می‌دهند.
+ * مسیرهای خواندن حساب دانش‌آموز.
+ *
+ * ثبت‌نام عمومی وجود ندارد: حساب دانش‌آموز فقط توسط دبیر از پنل ساخته می‌شود
+ * (`POST /api/teacher-students`). این مسیر فقط پروفایل و کارنامه‌های
+ * خودِ دانش‌آموز را برمی‌گرداند.
  */
 export default {
   routes: [
-    {
-      method: 'POST',
-      path: '/student-auth/register',
-      handler: 'student-auth.register',
-      config: { auth: false, policies: [], middlewares: [] },
-    },
     {
       method: 'GET',
       path: '/student-auth/me',

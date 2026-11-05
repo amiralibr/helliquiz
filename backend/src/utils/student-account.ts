@@ -1,8 +1,8 @@
 /**
  * ساخت و مدیریت حساب دانش‌آموز روی users-permissions.
  *
- * هم ثبت‌نام عمومی (`/api/student-auth/register`) و هم ساخت حساب توسط دبیر
- * (`/api/teacher-students`) از همین‌جا استفاده می‌کنند تا قواعد یکی باشد:
+ * حساب دانش‌آموز **فقط** توسط دبیر (`/api/teacher-students`) ساخته می‌شود و
+ * ثبت‌نام عمومی وجود ندارد. همهٔ قواعد ساخت حساب در همین فایل است:
  *   username = کد ملی، email = <کد ملی>@student.helliquiz.local، نقش Student
  */
 

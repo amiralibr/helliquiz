@@ -153,7 +153,6 @@ const seedQuizzes = async (strapi: Core.Strapi) => {
 
   for (const demo of DEMO_QUIZZES) {
     const quiz = await strapi.documents('api::quiz.quiz').create({
-      status: 'published',
       data: {
         title: demo.title,
         description: demo.description,
@@ -164,7 +163,6 @@ const seedQuizzes = async (strapi: Core.Strapi) => {
 
     for (const question of demo.questions) {
       await strapi.documents('api::question.question').create({
-        status: 'published',
         data: {
           questionText: question.questionText,
           options: question.options,
@@ -205,7 +203,6 @@ const seedStudent = async (strapi: Core.Strapi, studentRoleId: number) => {
 
   // یک کارنامه‌ی نمونه برای نمایش پنل دانش‌آموز
   const quizList = await strapi.documents('api::quiz.quiz').findMany({
-    status: 'published',
     populate: ['questions'],
     sort: ['createdAt:asc'],
     limit: 1,
@@ -314,6 +311,35 @@ async function ensureUniqueSubmissionIndex(strapi: Core.Strapi) {
 }
 
 
+/* ------------------------------------------------------------------------- *
+ * آزمون‌ها و سؤال‌ها دیگر پیش‌نویس/منتشرشده ندارند
+ * رکوردهایی که قبلاً «پیش‌نویس» مانده‌اند (published_at خالی) با یک بار
+ * اجرا «منتشرشده» می‌شوند تا در پنل دبیر و صفحهٔ آزمون دیده شوند.
+ * ------------------------------------------------------------------------- */
+async function publishLegacyQuizzes(strapi: Core.Strapi) {
+  const knex = strapi.db.connection;
+
+  for (const table of ['quizzes', 'questions']) {
+    try {
+      const hasTable = await knex.schema.hasTable(table);
+      if (!hasTable) continue;
+
+      const updated = await knex(table)
+        .whereNull('published_at')
+        .update({ published_at: knex.fn.now() });
+
+      if (Number(updated) > 0) {
+        strapi.log.info(
+          `[publish-backfill] ${updated} رکورد در «${table}» از پیش‌نویس به منتشرشده تبدیل شد.`
+        );
+      }
+    } catch (error) {
+      strapi.log.warn(`[publish-backfill] به‌روزرسانی «${table}» ناموفق بود:`, error);
+    }
+  }
+}
+
+
 export default {
   register() {},
 
@@ -333,6 +359,7 @@ export default {
       await ensureRolePermissions(strapi, teacherRole.id, AUTHENTICATED_ACTIONS);
       await setDefaultRegistrationRole(strapi, studentRole.id);
       await ensureUniqueSubmissionIndex(strapi);
+      await publishLegacyQuizzes(strapi);
 
       if (process.env.SEED_DEMO !== 'true') return;
 

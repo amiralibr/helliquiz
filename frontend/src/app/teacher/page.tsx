@@ -583,7 +583,7 @@ export default function TeacherDashboard() {
     try {
       setActionId(`save-quiz-${id}`);
       const res = await authedFetch(
-        `/api/quizzes/${encodeURIComponent(id)}?status=published`,
+        `/api/quizzes/${encodeURIComponent(id)}`,
         {
           method: "PUT",
           body: JSON.stringify({
@@ -738,7 +738,7 @@ export default function TeacherDashboard() {
 
     try {
       // فاز ۱: ایجاد آزمون و انتشار آن
-      const res = await authedFetch(`/api/quizzes?status=published`, {
+      const res = await authedFetch(`/api/quizzes`, {
         method: "POST",
         body: JSON.stringify({
           data: {
@@ -1384,6 +1384,19 @@ export default function TeacherDashboard() {
                     <span>آزمون جدید</span>
                   </button>
                 </div>
+
+                {quizzes.length === 0 && (
+                  <div className="card flex flex-col items-center gap-3 p-10 text-center">
+                    <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-500/10 text-indigo-300">
+                      <PlusCircle className="h-6 w-6" />
+                    </div>
+                    <p className="text-sm font-bold text-white">هنوز آزمونی ساخته نشده است</p>
+                    <p className="max-w-sm text-xs leading-6 text-muted">
+                      از دکمهٔ «آزمون جدید» یک آزمون بسازید؛ آزمون‌هایی که در پنل استراپی
+                      هم می‌سازید همین‌جا نمایش داده می‌شوند.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {quizzes.map((quiz) => {

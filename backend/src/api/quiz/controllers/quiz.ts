@@ -64,7 +64,6 @@ const findQuizWithQuestions = async (strapi: any, identifier: string) => {
   const document = await strapi.documents('api::quiz.quiz').findOne({
     documentId: identifier,
     populate: ['questions'],
-    status: 'published',
   });
 
   if (document) return document;
@@ -121,36 +120,49 @@ export default factories.createCoreController(
         return ctx.badRequest('شناسهٔ آزمون ارسال نشده است.');
       }
 
-      /* ---------- ۱. هویت دانش‌آموز ---------- */
-      let studentName = cleanText(body.studentName, 80);
-      let studentClass = cleanText(body.studentClass, 40);
-      let nationalCode = cleanText(body.nationalCode, 10);
-
-      // اگر دانش‌آموز وارد حسابش شده باشد، هویت از حسابش (users-permissions)
-      // خوانده می‌شود تا کسی نتواند با کد ملی دیگری کارنامه بسازد.
+      /* ---------- ۱. هویت دانش‌آموز ---------- *
+       * آزمون فقط با حساب دانش‌آموزی که دبیر ساخته است باز می‌شود.
+       * هیچ ورودیِ دستی (نام/کد ملی از بدنهٔ درخواست) پذیرفته نمی‌شود؛
+       * در غیر این صورت هر کسی می‌توانست با کد ملی دیگری کارنامه بسازد.
+       */
       const account = await resolveStudentFromContext(ctx);
 
-      if (account) {
-        studentName = cleanText(account.fullName, 80) || studentName;
-        studentClass = cleanText(account.studentClass, 40) || studentClass;
-        nationalCode = account.nationalCode;
+      if (!account) {
+        ctx.status = 401;
+        ctx.body = {
+          error: {
+            status: 401,
+            name: 'Unauthorized',
+            message:
+              'برای شرکت در آزمون باید با کد ملی و رمز عبوری که دبیر داده است وارد شوید.',
+          },
+        };
+        return;
       }
 
+      const studentName = cleanText(account.fullName, 80);
+      const studentClass = cleanText(account.studentClass, 40);
+      const nationalCode = account.nationalCode;
+
       if (studentName.length < 3) {
-        return ctx.badRequest('نام و نام خانوادگی باید دست‌کم ۳ نویسه باشد.');
+        return ctx.badRequest(
+          'نام و نام خانوادگی در حساب شما ثبت نشده است؛ با دبیر خود تماس بگیرید.'
+        );
       }
       if (!NATIONAL_CODE_PATTERN.test(nationalCode) || /^(\d)\1{9}$/.test(nationalCode)) {
-        return ctx.badRequest('کد ملی باید دقیقاً ۱۰ رقم معتبر باشد.');
+        return ctx.badRequest('کد ملی حساب شما معتبر نیست؛ با دبیر خود تماس بگیرید.');
       }
       if (studentClass.length < 1) {
-        return ctx.badRequest('کلاس / پایه را وارد کنید.');
+        return ctx.badRequest(
+          'کلاس/پایه در حساب شما ثبت نشده است؛ با دبیر خود تماس بگیرید.'
+        );
       }
 
       /* ---------- ۲. یافتن آزمون ---------- */
       const quiz: any = await findQuizWithQuestions(strapi, identifier);
 
       if (!quiz) {
-        return ctx.notFound('آزمون مورد نظر یافت نشد یا هنوز منتشر نشده است.');
+        return ctx.notFound('آزمون مورد نظر یافت نشد.');
       }
 
       const questions: any[] = Array.isArray(quiz.questions) ? quiz.questions : [];

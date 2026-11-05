@@ -8,7 +8,7 @@
     "description": "سؤال چهارگزینه‌ای؛ correctOption ایندکس صفر-بیس گزینه صحیح است"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {

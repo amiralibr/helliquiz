@@ -1,13 +1,15 @@
 /**
- * حساب دانش‌آموز روی همان مدل کاربرِ users-permissions ساخته می‌شود تا
- * مدیریت کاربران (نقش، مسدودسازی، بازنشانی رمز) همه از پنل استراپی انجام شود.
+ * خواندن حساب دانش‌آموز از users-permissions.
+ *
+ * حساب‌ها فقط توسط دبیر ساخته می‌شوند (`/api/teacher-students`) و این فایل
+ * تنها پروفایل و کارنامه‌های خودِ دانش‌آموز را برمی‌گرداند.
  *
  * نقش‌ها:
  *   - Student       → دانش‌آموزان (دسترسی محتوایی ندارد)
  *   - Authenticated → دبیران
  */
 
-import { USER_UID, createStudentAccount } from '../../../utils/student-account';
+import { USER_UID } from '../../../utils/student-account';
 
 const MAX_ATTEMPTS_PER_SUBMISSION = 500;
 
@@ -15,38 +17,6 @@ const fail = (ctx: any, status: number, message: string) =>
   ctx.throw(status, message, { code: 'STUDENT_AUTH_ERROR' });
 
 export default {
-  /** POST /api/student-auth/register — ساخت حساب دانش‌آموز */
-  async register(ctx: any) {
-    const body = (ctx.request.body || {}) as Record<string, unknown>;
-
-    try {
-      const student = await createStudentAccount(strapi, {
-        fullName: body.fullName,
-        studentClass: body.studentClass,
-        nationalCode: body.nationalCode,
-        password: body.password,
-      });
-
-      return ctx.send({
-        user: {
-          documentId: student.documentId,
-          fullName: student.fullName,
-          studentClass: student.studentClass,
-          nationalCode: student.nationalCode,
-        },
-      });
-    } catch (error: any) {
-      const status = Number(error?.status) || 500;
-      return fail(
-        ctx,
-        status,
-        status === 500
-          ? 'ثبت‌نام انجام نشد. لطفاً دوباره تلاش کنید.'
-          : error.message
-      );
-    }
-  },
-
   /** GET /api/student-auth/me — پروفایل و کارنامه‌های خودِ دانش‌آموز */
   async me(ctx: any) {
     const header = String(ctx.request.header.authorization || '');

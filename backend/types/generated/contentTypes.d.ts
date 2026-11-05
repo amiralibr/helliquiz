@@ -452,7 +452,7 @@ export interface ApiQuestionQuestion extends Struct.CollectionTypeSchema {
     singularName: 'question';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     correctAnswer: Schema.Attribute.Integer;
@@ -502,7 +502,7 @@ export interface ApiQuizQuiz extends Struct.CollectionTypeSchema {
     singularName: 'quiz';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     createdAt: Schema.Attribute.DateTime;
